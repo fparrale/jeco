@@ -1,0 +1,36 @@
+package jeco.algorithm.sa;
+
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import jeco.problem.Solution;
+import jeco.problem.Solutions;
+import jeco.problem.Variable;
+import jeco.problems.Rastringin;
+import jeco.util.logger.JecoLogger;
+
+/**
+ * Class to test the SA solver.
+ *
+ * @author J. M. Colmenar
+ */
+public class SimulatedAnnealing_example {
+
+    private static final Logger logger = Logger.getLogger(SimulatedAnnealing_example.class.getName());
+
+    /**
+     * @param args
+     */
+    public static void main(String[] args) {
+    	JecoLogger.setup(Level.INFO);
+        // First create the problem
+        Rastringin problem = new Rastringin(4);
+        // Second create the algorithm
+        SimulatedAnnealing<Variable<Double>> algorithm = new SimulatedAnnealing<Variable<Double>>(problem, (long)100000, (long)0);
+        algorithm.initialize();
+        Solutions<Variable<Double>> solutions = algorithm.execute();
+        for (Solution<Variable<Double>> solution : solutions) {
+            logger.log(Level.INFO, "Fitness = " + solution.getObjectives().get(0));
+        }
+    }
+}
