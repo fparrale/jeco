@@ -16,6 +16,7 @@ public abstract class AbstractPopEvaluator {
     protected ArrayList<double[]> dataTable;
 
     public abstract void evaluateExpression(int idxExpr);
+    public abstract double evaluate(int idxExpr, int k);
 
     public void setDataTable(ArrayList<double[]> dataTable) {
         this.dataTable = dataTable;
