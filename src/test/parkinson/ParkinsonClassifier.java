@@ -99,7 +99,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
 	currentJavaFile.append("\tmymax = getVariable(idxVar,i);\n");
 	currentJavaFile.append("\t}\n");
 	currentJavaFile.append("\t}\n");
-	currentJavaFile.append("\treturn max;\n");
+	currentJavaFile.append("\treturn mymax;\n");
 	currentJavaFile.append("\t}\n");
 	
         currentJavaFile.append("\tpublic void evaluateExpression(int idxExpr) {\n");
