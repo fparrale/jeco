@@ -1,4 +1,4 @@
-/*
+ /*
  * Copyright (C) 2010-2015 José Luis Risco Martín <jlrisco@ucm.es> and 
  * José Manuel Colmenar Verdugo <josemanuel.colmenar@urjc.es>
  *
@@ -92,6 +92,16 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\t\treturn res;\n");
         currentJavaFile.append("\t}\n\n");
 
+	currentJavaFile.append("\tpublic double MyMax(int from, int to, int idxVar) {\n");
+	currentJavaFile.append("\tdouble mymax = Double.NEGATIVE_INFINITY;\n");
+	currentJavaFile.append("\tfor(int i=from; i<=to; i++){\n");
+	currentJavaFile.append("\tif (getVariable(idxVar,i) > mymax) {\n");
+	currentJavaFile.append("\tmymax = getVariable(idxVar,i);\n");
+	currentJavaFile.append("\t}\n");
+	currentJavaFile.append("\t}\n");
+	currentJavaFile.append("\treturn max;\n");
+	currentJavaFile.append("\t}\n");
+	
         currentJavaFile.append("\tpublic void evaluateExpression(int idxExpr) {\n");
         currentJavaFile.append("\t\treturn;\n");
         currentJavaFile.append("\t}\n\n");
