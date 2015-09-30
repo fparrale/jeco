@@ -111,13 +111,32 @@ public class DataTable {
     }
 
     public double computeFitness(AbstractPopEvaluator evaluator, int idx) {
-        double fitness =  evaluator.evaluate(idx, -1);
-        fitness = Math.abs(fitness-Double.parseDouble(problem.properties.getProperty("ParkinsonLevel")));
+        double resultGE =  evaluator.evaluate(idx, -1);
+        
+        double qResult = quantizer(resultGE); 
+        
+        double fitness = Math.abs(qResult-Double.parseDouble(problem.properties.getProperty("ParkinsonLevel")));
         return fitness;
     }
 
     public ArrayList<double[]> getDataTable() {
         return trainingTable;
+    }
+    
+    public double quantizer(double currFitness) {
+        // Hardcode H&Y Parkinson Scale 0 to 3 (0 means no PD)
+        double qFitness = 0;
+        
+        if (currFitness >= 2.5) {
+            qFitness = 3;
+        } else if (currFitness >= 1.5){
+            qFitness = 2;
+        } else if (currFitness >= 0.5){
+            qFitness = 2;
+        } else {
+            qFitness = 0;
+        }
+        return qFitness;
     }
 
 }
