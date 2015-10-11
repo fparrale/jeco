@@ -1,24 +1,24 @@
 /*
- * Copyright (C) 2010-2015 José Luis Risco Martín <jlrisco@ucm.es> and 
- * José Manuel Colmenar Verdugo <josemanuel.colmenar@urjc.es>
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- * Contributors:
- *  - Josué Pagán Ortíz
- *  - José Luis Risco Martín
- */
+* Copyright (C) 2010-2015 José Luis Risco Martín <jlrisco@ucm.es> and
+* José Manuel Colmenar Verdugo <josemanuel.colmenar@urjc.es>
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*
+* Contributors:
+*  - Josué Pagán Ortíz
+*  - José Luis Risco Martín
+*/
 package test.parkinson;
 
 import java.io.BufferedReader;
@@ -40,11 +40,11 @@ import jeco.problem.Variable;
  * @author José Luis Risco Martín
  */
 public class DataTable {
-
+    
     private static final Logger logger = Logger.getLogger(DataTable.class.getName());
-
+    
     protected ParkinsonClassifier problem;
-    protected String trainingPath = null;
+    protected String baseTrainingPath = null;
     protected ArrayList<double[]> trainingTable = new ArrayList<>();
     protected int idxBegin = -1;
     protected int idxEnd = -1;
@@ -52,45 +52,99 @@ public class DataTable {
     protected int numTotalColumns = 0;
     protected double[] xLs = null;
     protected double[] xHs = null;
-
+    
     protected double bestFitness = Double.POSITIVE_INFINITY;
-
-    public DataTable(ParkinsonClassifier problem, String trainingPath, int idxBegin, int idxEnd) throws IOException {
+    
+    protected String foot = null;
+    protected Double patientPDLevel = null;
+    protected ArrayList<double[]> clinicalTable = new ArrayList<>();
+    
+    public DataTable(ParkinsonClassifier problem, String baseTrainingPath, int idxBegin, int idxEnd) throws IOException {
         this.problem = problem;
-        this.trainingPath = trainingPath;
+        this.baseTrainingPath = baseTrainingPath;
         logger.info("Reading data file ...");
-        fillDataTable(trainingPath, trainingTable);
+        
+        readData(problem.properties.getProperty("ClinicalPath"), clinicalTable, false);
+        
+        fillTrainingDataTable(trainingTable);
         this.idxBegin = (idxBegin == -1) ? 0 : idxBegin;
         this.idxEnd = (idxEnd == -1) ? trainingTable.size() : idxEnd;
         logger.info("Evaluation interval: [" + this.idxBegin + "," + this.idxEnd + ")");
         logger.info("... done.");
     }
-
-    public DataTable(ParkinsonClassifier problem, String trainingPath) throws IOException {
-        this(problem, trainingPath, -1, -1);
+    
+    public DataTable(ParkinsonClassifier problem, String baseTrainingPath) throws IOException {
+        this(problem, baseTrainingPath, -1, -1);
     }
-
-    public final void fillDataTable(String dataPath, ArrayList<double[]> dataTable) throws IOException {
-        BufferedReader reader = new BufferedReader(new FileReader(new File(dataPath)));
-        String line;
-        while ((line = reader.readLine()) != null) {
-            if (line.isEmpty() || line.startsWith("#")) {
-                continue;
+    
+    
+    public final void fillTrainingDataTable(ArrayList<double[]> dataTable) throws IOException {
+// exercises : exercises = {walk, cycling, hoolToe};
+        String exercises = problem.properties.getProperty("Exercises");
+        String[] exercisesTrunc = exercises.split(",");
+                
+        numInputColumns = 0;
+        numTotalColumns = 0;
+// For every patient
+        for (int p = 0; p < clinicalTable.size(); p++) {
+            String patientID = String.valueOf((int)clinicalTable.get(p)[1]);		    // Get the code GAxxxxxx
+            patientPDLevel = clinicalTable.get(p)[8];		    // Get the level scale H&Y
+            logger.info("PatientID: GA" + patientID + ", PDlevel: " + patientPDLevel);
+            
+            String absoluteBasePath = problem.properties.getProperty("DataPathBase");
+            
+            for (int f = 0; f<=1; f++){	// For each foot
+                foot = (f == 0) ? "RightFoot_" : "LeftFoot_";
+                
+                for (String ex : exercisesTrunc) {
+                    String absoluteDataPath = absoluteBasePath + "/GA" + patientID + "/" + foot + ex + ".csv";
+                    logger.info("Data: " + absoluteDataPath);
+                    
+                    readData(absoluteDataPath, trainingTable, true);
+                }
             }
-            String[] parts = line.split(";");
-            if (parts.length > numInputColumns) {
-                numInputColumns = parts.length;
-                numTotalColumns = numInputColumns + 1;
-            }
-            double[] dataLine = new double[numTotalColumns];
-            for (int j = 0; j < numInputColumns; ++j) {
-                dataLine[j] = Double.valueOf(parts[j]);
-            }
-            dataTable.add(dataLine);
         }
-        reader.close();
     }
-
+    
+    
+    public final void readData(String dataPath, ArrayList<double[]> dataTable, Boolean addOutputLine) throws IOException {
+        File file = new File(dataPath);
+        if (file.exists()){
+            
+            try (BufferedReader reader = new BufferedReader(new FileReader(new File(dataPath)))) {
+                String line;
+                
+                while ((line = reader.readLine()) != null) {
+                    if (line.isEmpty() || line.startsWith("#")) {
+                        continue;
+                    }
+                    String[] parts = line.split(";");
+                    if (parts.length == 1){
+                        parts = line.split(",");
+                    }
+                    if (parts.length > numInputColumns) {
+                        numInputColumns = parts.length;
+                        numTotalColumns = numInputColumns + 1;
+                    }
+                                        
+                    double[] dataLine = new double[numTotalColumns];
+                    for (int j = 0; j < numInputColumns; j++) {
+                        dataLine[j] = Double.valueOf(parts[j]);
+                    }
+                    if (addOutputLine) {
+                        dataLine[numTotalColumns-1] = patientPDLevel;
+                    }
+                    dataTable.add(dataLine);
+                }
+                reader.close();
+            }
+        }
+        else {
+            logger.info("File: " + dataPath + "DOES NOT EXIST");
+        }
+    }
+    
+    
     public double evaluate(AbstractPopEvaluator evaluator, Solution<Variable<Integer>> solution, int idx) {
         String functionAsString = problem.generatePhenotype(solution).toString();
         double fitness = computeFitness(evaluator, idx);
@@ -109,34 +163,43 @@ public class DataTable {
         }
         return fitness;
     }
-
+    
     public double computeFitness(AbstractPopEvaluator evaluator, int idx) {
-        double resultGE =  evaluator.evaluate(idx, -1);
+        Double resultGE =  evaluator.evaluate(idx, -1);
         
-        double qResult = quantizer(resultGE); 
+        Double qResult = quantizer(resultGE);
         
-        double fitness = Math.abs(qResult-Double.parseDouble(problem.properties.getProperty("ParkinsonLevel")));
+        Double fitness = Math.abs(qResult-Double.parseDouble(problem.properties.getProperty("ParkinsonLevel")));
         return fitness;
     }
-
-    public ArrayList<double[]> getDataTable() {
-        return trainingTable;
+    
+    public ArrayList<double[]> getDataTable(String  type) {
+        switch (type) {
+            case "training":
+                return trainingTable;
+            case "clinical":
+                return clinicalTable;
+            default:
+                return trainingTable;
+        }
     }
     
-    public double quantizer(double currFitness) {
+    public Double quantizer(Double currFitness) {
         // Hardcode H&Y Parkinson Scale 0 to 3 (0 means no PD)
-        double qFitness = 0;
+        logger.info("CUANTIZADOR");
+        
+        Double qFitness = 0.0;
         
         if (currFitness >= 2.5) {
-            qFitness = 3;
+            qFitness = 3.0;
         } else if (currFitness >= 1.5){
-            qFitness = 2;
+            qFitness = 2.0;
         } else if (currFitness >= 0.5){
-            qFitness = 2;
+            qFitness = 2.0;
         } else {
-            qFitness = 0;
+            qFitness = 0.0;
         }
         return qFitness;
     }
-
+    
 }

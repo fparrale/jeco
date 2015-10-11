@@ -166,7 +166,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         evaluator = null;
         try {
             evaluator = (AbstractPopEvaluator) (new MyLoader(compiler.getWorkDir())).loadClass("PopEvaluator" + threadId).newInstance();
-            evaluator.setDataTable(dataTable.getDataTable());
+            evaluator.setDataTable(dataTable.getDataTable("training"));
         } catch (Exception ex) {
             logger.severe(ex.getLocalizedMessage());
         }
