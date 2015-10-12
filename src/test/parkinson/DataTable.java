@@ -26,6 +26,9 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import jeco.algorithm.moge.AbstractProblemGE;
 import jeco.operator.evaluator.AbstractPopEvaluator;
@@ -58,6 +61,9 @@ public class DataTable {
     protected String foot = null;
     protected Double patientPDLevel = null;
     protected ArrayList<double[]> clinicalTable = new ArrayList<>();
+    protected int lengthIni = 0;
+    protected int lengthEnd = 0;
+    int[][] patientsIdXs = new int[clinicalTable.size()][2];
     
     public DataTable(ParkinsonClassifier problem, String baseTrainingPath, int idxBegin, int idxEnd) throws IOException {
         this.problem = problem;
@@ -82,27 +88,30 @@ public class DataTable {
 // exercises : exercises = {walk, cycling, hoolToe};
         String exercises = problem.properties.getProperty("Exercises");
         String[] exercisesTrunc = exercises.split(",");
-                
+        
         numInputColumns = 0;
         numTotalColumns = 0;
-// For every patient
+        patientsIdXs = new int[clinicalTable.size()][2];
+        
         for (int p = 0; p < clinicalTable.size(); p++) {
-            String patientID = String.valueOf((int)clinicalTable.get(p)[1]);		    // Get the code GAxxxxxx
-            patientPDLevel = clinicalTable.get(p)[8];		    // Get the level scale H&Y
+            String patientID = String.valueOf((int)clinicalTable.get(p)[1]);               // Get the code GAxxxxxx
+            patientPDLevel = clinicalTable.get(p)[8];              // Get the level scale H&Y
             logger.info("PatientID: GA" + patientID + ", PDlevel: " + patientPDLevel);
             
             String absoluteBasePath = problem.properties.getProperty("DataPathBase");
             
+            lengthIni = trainingTable.size();
             for (int f = 0; f<=1; f++){	// For each foot
                 foot = (f == 0) ? "RightFoot_" : "LeftFoot_";
                 
                 for (String ex : exercisesTrunc) {
                     String absoluteDataPath = absoluteBasePath + "/GA" + patientID + "/" + foot + ex + ".csv";
                     logger.info("Data: " + absoluteDataPath);
-                    
                     readData(absoluteDataPath, trainingTable, true);
                 }
             }
+            patientsIdXs[p][0] = lengthIni;
+            patientsIdXs[p][1] = trainingTable.size()-1;
         }
     }
     
@@ -126,7 +135,7 @@ public class DataTable {
                         numInputColumns = parts.length;
                         numTotalColumns = numInputColumns + 1;
                     }
-                                        
+                    
                     double[] dataLine = new double[numTotalColumns];
                     for (int j = 0; j < numInputColumns; j++) {
                         dataLine[j] = Double.valueOf(parts[j]);
@@ -145,9 +154,9 @@ public class DataTable {
     }
     
     
-    public double evaluate(AbstractPopEvaluator evaluator, Solution<Variable<Integer>> solution, int idx) {
+    public double evaluate(AbstractPopEvaluator evaluator, Solution<Variable<Integer>> solution, int patientNo, int idx) {
         String functionAsString = problem.generatePhenotype(solution).toString();
-        double fitness = computeFitness(evaluator, idx);
+        double fitness = computeFitness(evaluator, patientNo, idx);
         if (fitness < bestFitness) {
             bestFitness = fitness;
             for (int i = 0; i < numTotalColumns; ++i) {
@@ -164,12 +173,13 @@ public class DataTable {
         return fitness;
     }
     
-    public double computeFitness(AbstractPopEvaluator evaluator, int idx) {
+    public double computeFitness(AbstractPopEvaluator evaluator, int patientNo, int idx) {
         Double resultGE =  evaluator.evaluate(idx, -1);
         
         Double qResult = quantizer(resultGE);
         
-        Double fitness = Math.abs(qResult-Double.parseDouble(problem.properties.getProperty("ParkinsonLevel")));
+        // Get the PD H&Y level and compute fitness
+        Double fitness = Math.abs(qResult-clinicalTable.get(patientNo)[8]);
         return fitness;
     }
     
@@ -184,10 +194,12 @@ public class DataTable {
         }
     }
     
+    public int[][] getPatientsIdXs(){
+        return patientsIdXs;
+    }
+    
     public Double quantizer(Double currFitness) {
         // Hardcode H&Y Parkinson Scale 0 to 3 (0 means no PD)
-        logger.info("CUANTIZADOR");
-        
         Double qFitness = 0.0;
         
         if (currFitness >= 2.5) {

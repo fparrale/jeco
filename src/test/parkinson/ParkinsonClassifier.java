@@ -30,7 +30,9 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -58,7 +60,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     protected DataTable dataTable;
     protected Properties properties;
     protected AbstractPopEvaluator evaluator;
-
+            
     public ParkinsonClassifier(Properties properties, int threadId) throws IOException {
         super(properties.getProperty("BnfPathFile"), 1);
         this.properties = properties;
@@ -70,6 +72,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     @Override
     public void evaluate(Solutions<Variable<Integer>> solutions) {
         StringBuilder currentJavaFile = new StringBuilder();
+        int[][] patientsIdXs = dataTable.getPatientsIdXs();
 
         currentJavaFile.append("public class PopEvaluator").append(threadId).append(" extends jeco.operator.evaluator.AbstractPopEvaluator {\n\n");
 
@@ -162,24 +165,35 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         } catch (Exception ex) {
             logger.severe(ex.getLocalizedMessage());
         }
+        // Get clinical information
+        ArrayList<double[]> clinicalTable = dataTable.getDataTable("clinical");
+        ArrayList<double[]> rawDataTable = dataTable.getDataTable("training");
+
         // And now we evaluate all the solutions with the compiled file:
         evaluator = null;
-        try {
-            evaluator = (AbstractPopEvaluator) (new MyLoader(compiler.getWorkDir())).loadClass("PopEvaluator" + threadId).newInstance();
-            evaluator.setDataTable(dataTable.getDataTable("training"));
-        } catch (Exception ex) {
-            logger.severe(ex.getLocalizedMessage());
-        }
-        for (int i = 0; i < solutions.size(); ++i) {
-            Solution<Variable<Integer>> solution = solutions.get(i);
-            double fitness = dataTable.evaluate(evaluator, solution, i);
-            if (Double.isNaN(fitness)) {
-                logger.info("I have a NaN number here");
+        ArrayList<double[]> subLista;
+
+                    // For every patient
+
+        for (int p = 0; p < clinicalTable.size(); p++) {
+            try {
+                logger.info("Id1: " + patientsIdXs[p][0] + ", Id2: " + patientsIdXs[p][1]);
+                subLista = new ArrayList(rawDataTable.subList(patientsIdXs[p][0], patientsIdXs[p][1]));      
+                evaluator = (AbstractPopEvaluator) (new MyLoader(compiler.getWorkDir())).loadClass("PopEvaluator" + threadId).newInstance();
+                evaluator.setDataTable((ArrayList<double[]>) subLista);                            
+            } catch (Exception ex) {
+                logger.severe(ex.getLocalizedMessage());
             }
-            solution.getObjectives().set(0, fitness);
+            for (int i = 0; i < solutions.size(); ++i) {
+                Solution<Variable<Integer>> solution = solutions.get(i);
+                double fitness = dataTable.evaluate(evaluator, solution, p, i);
+                if (Double.isNaN(fitness)) {
+                    logger.info("I have a NaN number here");
+                }
+                solution.getObjectives().set(0, fitness);
+            }
         }
     }
-
     @Override
     public void evaluate(Solution<Variable<Integer>> solution) {
         logger.severe("The solutions should be already evaluated. You should not see this message.");
