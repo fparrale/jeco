@@ -49,6 +49,7 @@ public class DataTable {
     protected ParkinsonClassifier problem;
     protected String baseTrainingPath = null;
     protected ArrayList<double[]> trainingTable = new ArrayList<>();
+    protected ArrayList<double[]> subTrainingTable = new ArrayList<>();
     protected int idxBegin = -1;
     protected int idxEnd = -1;
     protected int numInputColumns = 0;
@@ -63,7 +64,8 @@ public class DataTable {
     protected ArrayList<double[]> clinicalTable = new ArrayList<>();
     protected int lengthIni = 0;
     protected int lengthEnd = 0;
-    int[][] patientsIdXs = new int[clinicalTable.size()][2];
+    protected int[][] patientsIdXs = new int[clinicalTable.size()][2];
+
     
     public DataTable(ParkinsonClassifier problem, String baseTrainingPath, int idxBegin, int idxEnd) throws IOException {
         this.problem = problem;
@@ -110,8 +112,10 @@ public class DataTable {
                     readData(absoluteDataPath, trainingTable, true);
                 }
             }
-            patientsIdXs[p][0] = lengthIni;
-            patientsIdXs[p][1] = trainingTable.size()-1;
+            if (lengthIni < trainingTable.size()-1){
+                patientsIdXs[p][0] = lengthIni;
+                patientsIdXs[p][1] = trainingTable.size()-1;
+            }
         }
     }
     
@@ -152,7 +156,34 @@ public class DataTable {
             logger.info("File: " + dataPath + "DOES NOT EXIST");
         }
     }
+        
     
+    public ArrayList<double[]> getDataTable(String  type) {
+        switch (type) {
+            case "training":
+                return trainingTable;
+            case "clinical":
+                return clinicalTable;
+            default:
+                return trainingTable;
+        }
+    }
+    
+    public ArrayList<double[]> getDataTable(String  type, int idx1, int idx2) {
+        switch (type) {
+            case "training":
+                subTrainingTable = new ArrayList(trainingTable.subList(idx1, idx2));
+                return new ArrayList(trainingTable.subList(idx1, idx2));
+            case "clinical":
+                return new ArrayList(clinicalTable.subList(idx1, idx2));
+            default:                
+                return trainingTable;
+        }
+    }
+
+    public int[][] getPatientsIdXs(){
+        return patientsIdXs;
+    }
     
     public double evaluate(AbstractPopEvaluator evaluator, Solution<Variable<Integer>> solution, int patientNo, int idx) {
         String functionAsString = problem.generatePhenotype(solution).toString();
@@ -174,33 +205,17 @@ public class DataTable {
     }
     
     public double computeFitness(AbstractPopEvaluator evaluator, int patientNo, int idx) {
-        Double resultGE =  evaluator.evaluate(idx, -1);
+        double resultGE =  evaluator.evaluate(idx, -1);
         
-        Double qResult = quantizer(resultGE);
+        double qResult = quantizer(resultGE);
         
         // Get the PD H&Y level and compute fitness
-        Double fitness = Math.abs(qResult-clinicalTable.get(patientNo)[8]);
+        double fitness = Math.abs(qResult-clinicalTable.get(patientNo)[8]);
         return fitness;
     }
-    
-    public ArrayList<double[]> getDataTable(String  type) {
-        switch (type) {
-            case "training":
-                return trainingTable;
-            case "clinical":
-                return clinicalTable;
-            default:
-                return trainingTable;
-        }
-    }
-    
-    public int[][] getPatientsIdXs(){
-        return patientsIdXs;
-    }
-    
-    public Double quantizer(Double currFitness) {
+    public double quantizer(Double currFitness) {
         // Hardcode H&Y Parkinson Scale 0 to 3 (0 means no PD)
-        Double qFitness = 0.0;
+        double qFitness = 0.0;
         
         if (currFitness >= 2.5) {
             qFitness = 3.0;
