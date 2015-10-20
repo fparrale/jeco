@@ -115,7 +115,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\tdouble res = 0.0;\n");
         currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
         currentJavaFile.append("\tdouble[] data = (array.length > 1) ? array : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
-        currentJavaFile.append("\tres = MySum(allIndexes[0], allIndexes[1], array) / (allIndexes[1] - allIndexes[0] + 1);\n");
+        currentJavaFile.append("\tres = MySum(allIndexes[0], allIndexes[1], data) / (allIndexes[1] - allIndexes[0] + 1);\n");
         currentJavaFile.append("\treturn res;\n");
         currentJavaFile.append("\t}\n");
         
@@ -123,7 +123,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\tdouble mygeoavg = 0.0;\n");
         currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
         currentJavaFile.append("\tdouble[] data = (array.length > 1) ? array : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
-        currentJavaFile.append("\tmygeoavg = Math.pow(MyPod(allIndexes[0], allIndexes[1], array), 1/(allIndexes[1]-allIndexes[0]+1));\n");
+        currentJavaFile.append("\tmygeoavg = Math.pow(MyPod(allIndexes[0], allIndexes[1], data), 1/(allIndexes[1]-allIndexes[0]+1));\n");
         currentJavaFile.append("\treturn mygeoavg;\n");
         currentJavaFile.append("\t}\n");
         
@@ -202,8 +202,15 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\treturn mymin;\n");
         currentJavaFile.append("}\n");
         
-        
-        
+        currentJavaFile.append("\tpublic double[] MyPow(int idx1, int idx2, double[] array, double pow) {\n");
+        currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
+        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? array : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
+        currentJavaFile.append("\tfor (int i = allIndexes[0]; i <= allIndexes[1]; ++i) {\n");
+        currentJavaFile.append("\tdata[i] = Math.pow(data[i], pow);\n");
+        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("\treturn data;\n");
+        currentJavaFile.append("\t}\n");
+ 
         currentJavaFile.append("\tpublic void evaluateExpression(int idxExpr) {\n");
         currentJavaFile.append("\t\treturn;\n");
         currentJavaFile.append("\t}\n\n");
@@ -292,7 +299,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         
         // And now we evaluate all the solutions with the compiled file:
         evaluator = null;
-        double fitness;
+        double cumulatedFitness = 0.0;
         
         try {
             evaluator = (AbstractPopEvaluator) (new MyLoader(compiler.getWorkDir())).loadClass("PopEvaluator" + threadId).newInstance();
@@ -301,19 +308,20 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         }
         
         for (int i = 0; i < solutions.size(); ++i) {
+            Solution<Variable<Integer>> solution = solutions.get(i);
             // For every patient
+            
             for (int p = 0; p < clinicalTable.size(); p++) {
-                logger.info("Solution: " + i + ", Patient: " + p);
-                logger.info("Id1: " + patientsIdXs[p][0] + ", Id2: " + patientsIdXs[p][1]);
+                //logger.info("Solution: " + i + ", Patient: " + p);
+                //logger.info("Id1: " + patientsIdXs[p][0] + ", Id2: " + patientsIdXs[p][1]);
                 evaluator.setDataTable((ArrayList<double[]>) dataTable.getDataTable("training", patientsIdXs[p][0], patientsIdXs[p][1]));
                 
-                Solution<Variable<Integer>> solution = solutions.get(i);
-                fitness = dataTable.evaluate(evaluator, solution, p, i);
-                if (Double.isNaN(fitness)) {
+                cumulatedFitness = dataTable.evaluate(evaluator, solution, p, i);
+                if (Double.isNaN(cumulatedFitness)) {
                     logger.info("I have a NaN number here");
                 }
-                solution.getObjectives().set(0, fitness);
             }
+            solution.getObjectives().set(0, cumulatedFitness);
         }
     }
     

@@ -26,11 +26,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.logging.Level;
 import java.util.logging.Logger;
-import jeco.algorithm.moge.AbstractProblemGE;
 import jeco.operator.evaluator.AbstractPopEvaluator;
 import jeco.problem.Solution;
 import jeco.problem.Variable;
@@ -65,7 +61,8 @@ public class DataTable {
     protected int lengthIni = 0;
     protected int lengthEnd = 0;
     protected int[][] patientsIdXs = new int[clinicalTable.size()][2];
-
+    protected double[] error = new double[92];
+    protected double cumulatedFitness = 0.0;
     
     public DataTable(ParkinsonClassifier problem, String baseTrainingPath, int idxBegin, int idxEnd) throws IOException {
         this.problem = problem;
@@ -187,31 +184,38 @@ public class DataTable {
     
     public double evaluate(AbstractPopEvaluator evaluator, Solution<Variable<Integer>> solution, int patientNo, int idx) {
         String functionAsString = problem.generatePhenotype(solution).toString();
-        double fitness = computeFitness(evaluator, patientNo, idx);
-        if (fitness < bestFitness) {
-            bestFitness = fitness;
-            for (int i = 0; i < numTotalColumns; ++i) {
-                if (i == 0) {
-                    functionAsString = functionAsString.replaceAll("getVariable\\(" + i + ",", "yr\\(");
-                } else if (i == numTotalColumns - 1) {
-                    functionAsString = functionAsString.replaceAll("getVariable\\(" + i + ",", "yp\\(");
-                } else {
-                    functionAsString = functionAsString.replaceAll("getVariable\\(" + i + ",", "u" + i + "\\(");
-                }
-            }
-            logger.info("Best FIT=" + (100 * (1 - bestFitness)) + "; Expresion=" + functionAsString);
+        if (patientNo == 0.0) { 
+            cumulatedFitness = 0.0;
         }
-        return fitness;
+        error[patientNo] = computeError(evaluator, patientNo, idx);
+        cumulatedFitness += error[patientNo]/(Integer.valueOf(problem.properties.getProperty("MaxPDLevel"))*clinicalTable.size());
+
+        if (patientNo == clinicalTable.size()-1) {            
+            if (cumulatedFitness < bestFitness) {
+                bestFitness = cumulatedFitness;
+                for (int i = 0; i < numTotalColumns; ++i) {
+                    if (i == 0) {
+                        functionAsString = functionAsString.replaceAll("getVariable\\(" + i + ",", "yr\\(");
+                    } else if (i == numTotalColumns - 1) {
+                        functionAsString = functionAsString.replaceAll("getVariable\\(" + i + ",", "yp\\(");
+                    } else {
+                        functionAsString = functionAsString.replaceAll("getVariable\\(" + i + ",", "u" + i + "\\(");
+                    }
+                }
+                logger.info("Best FIT=" + (100 * (1 - bestFitness)) + "; Expresion=" + functionAsString);
+            }   
+        }
+        return cumulatedFitness;
     }
     
-    public double computeFitness(AbstractPopEvaluator evaluator, int patientNo, int idx) {
+    public double computeError(AbstractPopEvaluator evaluator, int patientNo, int idx) {
         double resultGE =  evaluator.evaluate(idx, -1);
         
         double qResult = quantizer(resultGE);
         
         // Get the PD H&Y level and compute fitness
-        double fitness = Math.abs(qResult-clinicalTable.get(patientNo)[8]);
-        return fitness;
+        double dif = Math.abs(qResult-clinicalTable.get(patientNo)[Integer.valueOf(problem.properties.getProperty("PDLevelCol"))]);
+        return dif;
     }
     public double quantizer(Double currFitness) {
         // Hardcode H&Y Parkinson Scale 0 to 3 (0 means no PD)
