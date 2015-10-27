@@ -65,7 +65,7 @@ public class DataTable {
     protected int[][] patientsIdXs = new int[clinicalTable.size()][2];
     protected double[] error = new double[92];
     protected double cumulatedFitness = 0.0;
-    
+    protected String classifier;
     protected FileHandler fh;  
 
  
@@ -139,6 +139,7 @@ public class DataTable {
     
     
     public final void readData(String dataPath, ArrayList<double[]> dataTable, Boolean addOutputLine) throws IOException {
+        classifier = problem.properties.getProperty("Classifier");
         File file = new File(dataPath);
         if (file.exists()){
             
@@ -209,10 +210,15 @@ public class DataTable {
             cumulatedFitness = 0.0;
         }
         error[patientNo] = computeError(evaluator, patientNo, idx);
-        cumulatedFitness += error[patientNo]/(Integer.valueOf(problem.properties.getProperty("MaxPDLevel"))*clinicalTable.size());
-
+        switch (classifier) {
+            case "quantizer":
+                cumulatedFitness += error[patientNo]/(Integer.valueOf(problem.properties.getProperty("MaxPDLevel"))*clinicalTable.size());
+            case "dichotomizer":
+                cumulatedFitness += error[patientNo]/clinicalTable.size();
+        }
+        
         if (patientNo == clinicalTable.size()-1) {            
-            if (cumulatedFitness < bestFitness) {
+            if (cumulatedFitness <= bestFitness) {
                 bestFitness = cumulatedFitness;
                 logger.info("Best FIT=" + (100 * (1 - bestFitness)) + "; Expresion=" + functionAsString);
             }   
@@ -222,14 +228,33 @@ public class DataTable {
     
     public double computeError(AbstractPopEvaluator evaluator, int patientNo, int idx) {
         double resultGE =  evaluator.evaluate(idx, -1);
+        double qResult = 0.0;
+        double dif = 0.0;
         
-        double qResult = quantizer(resultGE);
-        //logger.info("Solution, " + idx + ", patient, " + patientNo + ", ResultGE, " + resultGE + ", qResult, " + qResult);
-
-        // Get the PD H&Y level and compute fitness
-        double dif = Math.abs(qResult-clinicalTable.get(patientNo)[Integer.valueOf(problem.properties.getProperty("PDLevelCol"))]);
+        switch (classifier) {            
+            case "quantizer":
+                qResult = quantizer(resultGE);
+                //logger.info("Solution, " + idx + ", patient, " + patientNo + ", ResultGE, " + resultGE + ", qResult, " + qResult);
+                
+                // Get the PD H&Y level and compute fitness
+                dif = Math.abs(qResult-clinicalTable.get(patientNo)[Integer.valueOf(problem.properties.getProperty("PDLevelCol"))]);
+                
+            case "dichotomizer":
+                qResult = dichotomicer(resultGE);
+                
+                // This is equivalent to the RMSE
+                double levelPD = clinicalTable.get(patientNo)[Integer.valueOf(problem.properties.getProperty("PDLevelCol"))];
+                
+                if (levelPD == 0.0){
+                    dif = qResult;
+                }
+                else { 
+                    dif = Math.abs(qResult-1);
+                }
+        }
         return dif;
     }
+    
     public double quantizer(Double currFitness) {
         // Hardcode H&Y Parkinson Scale 0 to 3 (0 means no PD)
         double qFitness = 0.0;
@@ -244,6 +269,18 @@ public class DataTable {
             qFitness = 2.0;
         } else if (currFitness >= 0.5){
             qFitness = 2.0;
+        } else {
+            qFitness = 0.0;
+        }
+        return qFitness;
+    }
+    
+    public double dichotomicer(Double currFitness) {
+        // Hardcode H&Y Parkinson Scale (0 means no PD)
+        double qFitness = 0.0;
+        
+        if (currFitness > 0.0) {
+            qFitness = 1.0;
         } else {
             qFitness = 0.0;
         }
