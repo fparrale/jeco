@@ -26,6 +26,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.logging.FileHandler;
 import java.util.logging.Logger;
 import jeco.operator.evaluator.AbstractPopEvaluator;
 import jeco.problem.Solution;
@@ -37,6 +38,7 @@ import jeco.problem.Variable;
  * is normalized in the interval [1,2].
  *
  * @author José Luis Risco Martín
+ * @author Josué Pagán Ortiz
  */
 public class DataTable {
     
@@ -64,6 +66,11 @@ public class DataTable {
     protected double[] error = new double[92];
     protected double cumulatedFitness = 0.0;
     
+    protected FileHandler fh;  
+
+ 
+    
+    
     public DataTable(ParkinsonClassifier problem, String baseTrainingPath, int idxBegin, int idxEnd) throws IOException {
         this.problem = problem;
         this.baseTrainingPath = baseTrainingPath;
@@ -76,6 +83,15 @@ public class DataTable {
         this.idxEnd = (idxEnd == -1) ? trainingTable.size() : idxEnd;
         logger.info("Evaluation interval: [" + this.idxBegin + "," + this.idxEnd + ")");
         logger.info("... done.");
+        
+        //try {
+            // This block configure the logger with handler and formatter
+        //    fh = new FileHandler("/tmp/MyLogFile.log");
+        //    logger.addHandler(fh);
+        //   SimpleFormatter formatter = new SimpleFormatter();
+        //    fh.setFormatter(formatter);
+        //} catch (SecurityException | IOException e) {
+        //}
     }
     
     public DataTable(ParkinsonClassifier problem, String baseTrainingPath) throws IOException {
@@ -105,13 +121,18 @@ public class DataTable {
                 
                 for (String ex : exercisesTrunc) {
                     String absoluteDataPath = absoluteBasePath + "/GA" + patientID + "/" + foot + ex + ".csv";
-                    logger.info("Data: " + absoluteDataPath);
+                    //logger.info("Data: " + absoluteDataPath);
                     readData(absoluteDataPath, trainingTable, true);
                 }
             }
             if (lengthIni < trainingTable.size()-1){
                 patientsIdXs[p][0] = lengthIni;
                 patientsIdXs[p][1] = trainingTable.size()-1;
+            }
+            else {
+                System.out.println("No data for Patient: GA" + patientID);
+                patientsIdXs[p][0] = lengthIni;
+                patientsIdXs[p][1] = lengthIni;
             }
         }
     }
@@ -150,7 +171,7 @@ public class DataTable {
             }
         }
         else {
-            logger.info("File: " + dataPath + "DOES NOT EXIST");
+            logger.info("File: " + dataPath + " DOES NOT EXIST");
         }
     }
         
@@ -193,15 +214,6 @@ public class DataTable {
         if (patientNo == clinicalTable.size()-1) {            
             if (cumulatedFitness < bestFitness) {
                 bestFitness = cumulatedFitness;
-                for (int i = 0; i < numTotalColumns; ++i) {
-                    if (i == 0) {
-                        functionAsString = functionAsString.replaceAll("getVariable\\(" + i + ",", "yr\\(");
-                    } else if (i == numTotalColumns - 1) {
-                        functionAsString = functionAsString.replaceAll("getVariable\\(" + i + ",", "yp\\(");
-                    } else {
-                        functionAsString = functionAsString.replaceAll("getVariable\\(" + i + ",", "u" + i + "\\(");
-                    }
-                }
                 logger.info("Best FIT=" + (100 * (1 - bestFitness)) + "; Expresion=" + functionAsString);
             }   
         }
@@ -212,7 +224,8 @@ public class DataTable {
         double resultGE =  evaluator.evaluate(idx, -1);
         
         double qResult = quantizer(resultGE);
-        
+        //logger.info("Solution, " + idx + ", patient, " + patientNo + ", ResultGE, " + resultGE + ", qResult, " + qResult);
+
         // Get the PD H&Y level and compute fitness
         double dif = Math.abs(qResult-clinicalTable.get(patientNo)[Integer.valueOf(problem.properties.getProperty("PDLevelCol"))]);
         return dif;
@@ -221,7 +234,11 @@ public class DataTable {
         // Hardcode H&Y Parkinson Scale 0 to 3 (0 means no PD)
         double qFitness = 0.0;
         
-        if (currFitness >= 2.5) {
+        if (currFitness >= 4.5) {
+            qFitness = 5.0;
+        } else if (currFitness >= 3.5) {
+            qFitness = 4.0;
+        } else if (currFitness >= 2.5) {
             qFitness = 3.0;
         } else if (currFitness >= 1.5){
             qFitness = 2.0;

@@ -32,7 +32,6 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -41,7 +40,6 @@ import jeco.algorithm.moge.AbstractProblemGE;
 import jeco.algorithm.moge.Phenotype;
 import jeco.operator.comparator.SimpleDominance;
 import jeco.operator.crossover.SinglePointCrossover;
-import jeco.operator.evaluator.AbstractPopEvaluator;
 import jeco.operator.evaluator.AbstractPopEvaluator;
 import jeco.operator.mutation.IntegerFlipMutation;
 import jeco.operator.selection.BinaryTournament;
@@ -85,17 +83,25 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\tdouble[] var5 ={5.0};\n");
         currentJavaFile.append("\n");
         
+         /**
+         * Implementation of functions of the Grammar
+         * */
+        
         currentJavaFile.append("public double MyDrv(int idx1, int idx2, double[] array) {\n");
         currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
-        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? array : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
-        currentJavaFile.append("\t\treturn (data[allIndexes[1]] - data[allIndexes[0]])/(allIndexes[1] - allIndexes[0] + 1);\n");
+        currentJavaFile.append("\tif (array.length > 1) {\n");
+        currentJavaFile.append("\treturn (array[allIndexes[1]] - array[allIndexes[0]])/(allIndexes[1]-allIndexes[0]+1);\n");
         currentJavaFile.append("\t}\n");
-        
+        currentJavaFile.append("\telse {\n");
+        currentJavaFile.append("\treturn (getDataTable((int)array[0], allIndexes[1]) - getDataTable((int)array[0], allIndexes[0]))/(allIndexes[1]-allIndexes[0]+1);\n");
+        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("\t}\n");
+ 
         currentJavaFile.append("public double MySum(int idx1, int idx2, double[] array) {\n");
         currentJavaFile.append("\t\tdouble res = 0.0;\n");
         currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
-        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? array : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
-        currentJavaFile.append("\t\tfor (int i = allIndexes[0]; i <= allIndexes[1]; ++i) {\n");
+        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? getData(array, allIndexes[0], allIndexes[1]) : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
+        currentJavaFile.append("\t\tfor (int i = 0; i <= data.length-1; i++) {\n");
         currentJavaFile.append("\t\t\tres += data[i];\n");
         currentJavaFile.append("\t\t}\n");
         currentJavaFile.append("\t\treturn res;\n");
@@ -104,8 +110,8 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("public double MyPod(int idx1, int idx2, double[] array) {\n");
         currentJavaFile.append("\tdouble mypod = 1.0;\n");
         currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
-        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? array : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
-        currentJavaFile.append("\tfor (int i = allIndexes[0]; i <= allIndexes[1]; i++) {\n");
+        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? getData(array, allIndexes[0], allIndexes[1]) : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
+        currentJavaFile.append("\tfor (int i = 0; i <= data.length-1; i++) {\n");
         currentJavaFile.append("\tmypod *= data[i];\n");
         currentJavaFile.append("\t}\n");
         currentJavaFile.append("\treturn mypod;\n");
@@ -114,47 +120,80 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("public double MyAvg(int idx1, int idx2, double[] array) {\n");
         currentJavaFile.append("\tdouble res = 0.0;\n");
         currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
-        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? array : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
-        currentJavaFile.append("\tres = MySum(allIndexes[0], allIndexes[1], data) / (allIndexes[1] - allIndexes[0] + 1);\n");
+        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? getData(array, allIndexes[0], allIndexes[1]) : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
+        currentJavaFile.append("\tres = MySum(0, 100, data)/data.length;\n");
         currentJavaFile.append("\treturn res;\n");
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("public double MyGeoAvg(int idx1, int idx2, double[] array) {\n");
         currentJavaFile.append("\tdouble mygeoavg = 0.0;\n");
         currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
-        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? array : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
-        currentJavaFile.append("\tmygeoavg = Math.pow(MyPod(allIndexes[0], allIndexes[1], data), 1/(allIndexes[1]-allIndexes[0]+1));\n");
+        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? getData(array, allIndexes[0], allIndexes[1]) : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
+        currentJavaFile.append("\tmygeoavg = Math.pow(MyPod(0, 100, data), 1/(data.length));\n");
         currentJavaFile.append("\treturn mygeoavg;\n");
         currentJavaFile.append("\t}\n");
         
-        currentJavaFile.append("public double MyStd(int idx1, int idx2, double[] array) {\n");
+        currentJavaFile.append("\tpublic double MyStd(int idx1, int idx2, double[] array) {\n");
         currentJavaFile.append("\tdouble mystd;\n");
-        currentJavaFile.append("\tdouble res = 0.0;\n");
         currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
-        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? array : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
-        currentJavaFile.append("\tdouble[] varPow = new double[allIndexes[1]-allIndexes[0]+1];\n");
-        currentJavaFile.append("\tfor(int i=allIndexes[0]; i<=allIndexes[1]; i++){\n");
-        currentJavaFile.append("\tvarPow[i] = Math.pow(data[i], 2);\n");
+        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? getData(array, allIndexes[0], allIndexes[1]) : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
+        currentJavaFile.append("\tdouble[] res = new double[data.length];\n");
+        currentJavaFile.append("\tdouble avg = MyAvg(0, 100, data);\n");
+        currentJavaFile.append("\tfor (int i = 0; i <= data.length-1; i++) {\n");
+        currentJavaFile.append("\tres[i] = Math.pow(data[i] - avg, 2);\n");
         currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\tfor (int i = allIndexes[0]; i <= allIndexes[1]; i++) {\n");
-        currentJavaFile.append("\tres += varPow[i];\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\t\n");
-        currentJavaFile.append("\tmystd = (res/(allIndexes[1]-allIndexes[0]))-MyAvg(allIndexes[0], allIndexes[1], array);\n");
+        currentJavaFile.append("\tmystd = Math.pow(MyAvg(0, 100, res), 0.5);\n");
         currentJavaFile.append("\treturn mystd;\n");
         currentJavaFile.append("\t}\n");
+
+        currentJavaFile.append("public double MyMax(int idx1, int idx2, double[] array) {\n");
+        currentJavaFile.append("\tdouble mymax = Double.NEGATIVE_INFINITY;\n");
+        currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
+        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? getData(array, allIndexes[0], allIndexes[1]) : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
+        currentJavaFile.append("\tfor(int i=0; i<=data.length-1; i++){\n");
+        currentJavaFile.append("\tif (data[i] > mymax) {\n");
+        currentJavaFile.append("\tmymax = data[i];\n");
+        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("}\n");
+        currentJavaFile.append("\treturn mymax;\n");
+        currentJavaFile.append("}\n");
         
+        currentJavaFile.append("public double MyMin(int idx1, int idx2, double[] array) {\n");
+        currentJavaFile.append("\tdouble mymin = Double.POSITIVE_INFINITY;\n");
+        currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
+        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? getData(array, allIndexes[0], allIndexes[1]) : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
+        currentJavaFile.append("\tfor(int i=0; i<=data.length-1; i++){\n");
+        currentJavaFile.append("\tif (data[i] < mymin) {\n");
+        currentJavaFile.append("\tmymin = data[i];\n");
+        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("\treturn mymin;\n");
+        currentJavaFile.append("}\n");
+        
+        currentJavaFile.append("\tpublic double MyTotalVar(int idx1, int idx2, double[] array) {\n");
+        currentJavaFile.append("\tdouble mytotalvar = 0.0;\n");
+        currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
+        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? getData(array, allIndexes[0], allIndexes[1]) : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
+        currentJavaFile.append("\tdouble[] derv = new double[data.length-1];\n");
+        currentJavaFile.append("\tfor(int i=0; i<=data.length-2; i++){\n");
+        currentJavaFile.append("\tderv[i] = data[i+1]-data[i];\n");
+        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("\tfor (int i = 0; i <= derv.length-1; i++) {\n");
+        currentJavaFile.append("\tmytotalvar += Math.abs(derv[i]);\n");
+        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("\treturn mytotalvar;\n");
+        currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("public double[] MyConv(int idx1_1, int idx2_1, int idx1_2, int idx2_2, double[] array1, double[] array2) {\n");
         currentJavaFile.append("\tint[] allIndexes1 = calculateIndexes(idx1_1, idx1_2, array1);\n");
         currentJavaFile.append("\tint[] allIndexes2 = calculateIndexes(idx2_1, idx2_2, array2);\n");
-        currentJavaFile.append("\tdouble[] x = (array1.length > 1) ? array1 : getData((int)array1[0], allIndexes1[0], allIndexes1[1]);\n");
-        currentJavaFile.append("\tdouble[] h = (array2.length > 1) ? array2 : getData((int)array2[0], allIndexes2[0], allIndexes2[1]);\n");
-        currentJavaFile.append("\tdouble[] myconv = new double[(allIndexes1[1]-allIndexes1[0])+(allIndexes2[1]-allIndexes2[0])-1];\n");
-        currentJavaFile.append("\tfor (int i = 0; i < (allIndexes1[1]-allIndexes1[0])+(allIndexes2[1]-allIndexes2[0])-1; i++ )	{\n");
+        currentJavaFile.append("\tdouble[] x = (array1.length > 1) ? getData(array1, allIndexes1[0], allIndexes1[1]) : getData((int)array1[0], allIndexes1[0], allIndexes1[1]);\n");
+        currentJavaFile.append("\tdouble[] h = (array2.length > 1) ? getData(array2, allIndexes2[0], allIndexes2[1]) : getData((int)array2[0], allIndexes2[0], allIndexes2[1]);\n");
+        currentJavaFile.append("\tdouble[] myconv = new double[x.length + h.length - 1];\n");
+        currentJavaFile.append("\tfor (int i = 0; i <= myconv.length -1; i++ )	{\n");
         currentJavaFile.append("\tmyconv[i] = 0;                       // set to zero before sum\n");
-        currentJavaFile.append("\tfor (int j = 0; j < (allIndexes2[1]-allIndexes2[0]); j++ ) {\n");
-        currentJavaFile.append("\tif ((j < i) && ((i-j) < (allIndexes1[1]-allIndexes1[0]))) {\n");
+        currentJavaFile.append("\tfor (int j = 0; j <= h.length-1; j++ ) {\n");
+        currentJavaFile.append("\tif ((j <= i) && ((i-j) < x.length)) {\n");
         currentJavaFile.append("\tmyconv[i] += x[i - j] * h[j];    // convolve: multiply and accumulate\n");
         currentJavaFile.append("\t}\n");
         currentJavaFile.append("\t}\n");
@@ -163,68 +202,38 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\t}\n");
         
         
-        currentJavaFile.append("public double MyMax(int idx1, int idx2, double[] array) {\n");
-        currentJavaFile.append("\tdouble mymax = Double.NEGATIVE_INFINITY;\n");
-        currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
-        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? array : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
-        currentJavaFile.append("\tfor(int i=allIndexes[0]; i<=allIndexes[1]; i++){\n");
-        currentJavaFile.append("\tif (data[i] > mymax) {\n");
-        currentJavaFile.append("\tmymax = data[i];\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("}\n");
-        currentJavaFile.append("\treturn mymax;\n");
-        currentJavaFile.append("}\n");
-        
-        currentJavaFile.append("\tpublic double MyTotalVar(int idx1, int idx2, double[] array) {\n");
-        currentJavaFile.append("\tdouble mytotalvar = 0.0;\n");
-        currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
-        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? array : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
-        currentJavaFile.append("\tdouble[] derv = new double[allIndexes[1]-allIndexes[0]-1];\n");
-        currentJavaFile.append("\tfor(int i=allIndexes[0]; i<=allIndexes[1]-1; i++){\n");
-        currentJavaFile.append("\tderv[i] = data[i+1]-data[i];\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\tfor (int i = allIndexes[0]; i <= allIndexes[1]; i++) {\n");
-        currentJavaFile.append("\tmytotalvar += Math.abs(derv[i]);\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\treturn mytotalvar;\n");
-        currentJavaFile.append("\t}\n");
-        
-        
-        currentJavaFile.append("public double MyMin(int idx1, int idx2, double[] array) {\n");
-        currentJavaFile.append("\tdouble mymin = Double.POSITIVE_INFINITY;\n");
-        currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
-        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? array : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
-        currentJavaFile.append("\tfor(int i=allIndexes[0]; i<=allIndexes[1]; i++){\n");
-        currentJavaFile.append("\tif (data[i] < mymin) {\n");
-        currentJavaFile.append("\tmymin = data[i];\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\treturn mymin;\n");
-        currentJavaFile.append("}\n");
-        
         currentJavaFile.append("\tpublic double[] MyPow(int idx1, int idx2, double[] array, double pow) {\n");
         currentJavaFile.append("\tint[] allIndexes = calculateIndexes(idx1, idx2, array);\n");
-        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? array : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
-        currentJavaFile.append("\tfor (int i = allIndexes[0]; i <= allIndexes[1]; ++i) {\n");
+        currentJavaFile.append("\tdouble[] data = (array.length > 1) ? getData(array, allIndexes[0], allIndexes[1]) : getData((int)array[0], allIndexes[0], allIndexes[1]);\n");
+        currentJavaFile.append("\tfor (int i = 0; i <= data.length-1; i++) {\n");
         currentJavaFile.append("\tdata[i] = Math.pow(data[i], pow);\n");
         currentJavaFile.append("\t}\n");
         currentJavaFile.append("\treturn data;\n");
         currentJavaFile.append("\t}\n");
- 
-        currentJavaFile.append("\tpublic void evaluateExpression(int idxExpr) {\n");
-        currentJavaFile.append("\t\treturn;\n");
-        currentJavaFile.append("\t}\n\n");
-        
+
+        /**
+         * Utils
+         * */
         currentJavaFile.append("public double[] getData(int idx, int from, int to) {\n");
-        currentJavaFile.append("\tdouble[] data = null;\n");
-        currentJavaFile.append("\tfor(int i=from; i<=to; i++){\n");
-        currentJavaFile.append("\tdata[i] = getDataTable(idx, i);\n");
+        currentJavaFile.append("\tdouble[] data = new double[to-from+1];\n");
+        currentJavaFile.append("\tfor(int i=0; i<=to-from; i++){\n");
+        currentJavaFile.append("\tdata[i] = getDataTable(idx, i + from);\n");
         currentJavaFile.append("\t}\n");
         currentJavaFile.append("\treturn data;\n");
         currentJavaFile.append("}\n");
         
+        currentJavaFile.append("public double[] getData(double[] array, int from, int to) {\n");
+        currentJavaFile.append("\tdouble[] data = new double[to-from+1];\n");
+        currentJavaFile.append("\tfor(int i=0; i<=data.length-1; i++){\n");
+        currentJavaFile.append("\tdata[i] = array[i+from];\n");
+        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("\treturn data;\n");
+        currentJavaFile.append("\t}\n");
+
+        
         currentJavaFile.append("public int[] calculateIndexes(int idx1, int idx2, double[] array){\n");
-        currentJavaFile.append("\tint[] idxs = null;\n");
+        currentJavaFile.append("\tint[] idxs = new int[2];\n");  
+        currentJavaFile.append("\tint length;\n"); 
         currentJavaFile.append("\tif (idx1 < idx2){\n");
         currentJavaFile.append("\tidxs[0] = idx1;\n");
         currentJavaFile.append("\tidxs[1] = idx2;\n");
@@ -233,18 +242,39 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\tidxs[1] = idx1;\n");
         currentJavaFile.append("\t}\n");
         currentJavaFile.append("\tif (array.length > 1){\n");
-        currentJavaFile.append("\tidxs[0] = (int)Math.round(idxs[0]*array.length/100);\n");
-        currentJavaFile.append("\tidxs[1] = (int)Math.round(idxs[1]*array.length/100);\n");
-        currentJavaFile.append("\tidxs[2] = (int)array[0];\n");
+        currentJavaFile.append("\tlength = array.length;\n");
+        currentJavaFile.append("\tidxs[0] = (int)Math.round(idxs[0]*length/100);\n");
+        currentJavaFile.append("\tidxs[1] = (int)Math.round(idxs[1]*length/100);\n");
         currentJavaFile.append("\t}\n");
         currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\tidxs[0] = (int)Math.round(idxs[0]*table.size()/100);\n");
-        currentJavaFile.append("\tidxs[1] = (int)Math.round(idxs[1]*table.size()/100);\n");
-        currentJavaFile.append("\tidxs[2] = 0;\n");
+        currentJavaFile.append("\tlength = dataTable.size();\n");
+        currentJavaFile.append("\tidxs[0] = (int)Math.round(idxs[0]*length/100);\n");
+        currentJavaFile.append("\tidxs[1] = (int)Math.round(idxs[1]*length/100);\n");
+        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("\tif (idxs[0] == length){\n");
+        currentJavaFile.append("\tidxs[0] -= 1;\n");
+        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("\tif (idxs[1] == length){\n");
+        currentJavaFile.append("\tidxs[1] -= 1;\n");
+        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("\tif (idxs[0] == idxs[1]) {\n");
+        currentJavaFile.append("\t  if (idxs[0] == 0) {\n");
+        currentJavaFile.append("\t    idxs[1] = 1;\n");
+        currentJavaFile.append("\t  } \n");
+        currentJavaFile.append("\t  else if (idxs[0] == length){\n");
+        currentJavaFile.append("\t      idxs[1] = idxs[0]-1;\n");
+        currentJavaFile.append("\t  }\n");
+        currentJavaFile.append("\t  else {\n");
+        currentJavaFile.append("\t     idxs[1] += 1; \n");
+        currentJavaFile.append("\t  }\n");
         currentJavaFile.append("\t}\n");
         currentJavaFile.append("\treturn idxs;\n");
         currentJavaFile.append("\t}\n");
         
+        currentJavaFile.append("\tpublic void evaluateExpression(int idxExpr) {\n");
+        currentJavaFile.append("\t\treturn;\n");
+        currentJavaFile.append("\t}\n\n");
+
         currentJavaFile.append("\tpublic double evaluate(int idxExpr, int k) {\n");
         currentJavaFile.append("\t\tdouble result = 0.0;\n");
         currentJavaFile.append("\t\ttry {\n");
@@ -262,15 +292,19 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             currentJavaFile.append("\t\t\t\t\tbreak;\n");
         }
         currentJavaFile.append("\t\t\t\tdefault:\n");
+        currentJavaFile.append("\t\t\tSystem.err.println(\"GE result is DefaultValue.\");\n");
         currentJavaFile.append("\t\t\t\t\tresult = Double.POSITIVE_INFINITY;\n");
         currentJavaFile.append("\t\t\t}\n"); // End switch
         
         currentJavaFile.append("\t\t}\n"); // End try
         currentJavaFile.append("\t\tcatch (Exception ee) {\n");
-        currentJavaFile.append("\t\t\t// System.err.println(ee.getLocalizedMessage());\n");
+        currentJavaFile.append("\t\t\tSystem.err.println(ee.fillInStackTrace());\n");
+        currentJavaFile.append("\t\t\tSystem.err.println(\"Exception trying to calculate the GE result.\");\n");
+
         currentJavaFile.append("\t\t\tresult = Double.POSITIVE_INFINITY;\n");
         currentJavaFile.append("\t\t}\n"); // End catch
         currentJavaFile.append("\t\tif(Double.isNaN(result)) {\n");
+        currentJavaFile.append("\t\t\tSystem.err.println(\"GE result is NaN.\");\n");
         currentJavaFile.append("\t\t\tresult = Double.POSITIVE_INFINITY;\n");
         currentJavaFile.append("\t\t}\n");
         currentJavaFile.append("\t\treturn result;\n");
@@ -295,7 +329,6 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         }
         // Get clinical information
         ArrayList<double[]> clinicalTable = dataTable.getDataTable("clinical");
-        //ArrayList<double[]> rawDataTable = dataTable.getDataTable("training");
         
         // And now we evaluate all the solutions with the compiled file:
         evaluator = null;
@@ -312,8 +345,6 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             // For every patient
             
             for (int p = 0; p < clinicalTable.size(); p++) {
-                //logger.info("Solution: " + i + ", Patient: " + p);
-                //logger.info("Id1: " + patientsIdXs[p][0] + ", Id2: " + patientsIdXs[p][1]);
                 evaluator.setDataTable((ArrayList<double[]>) dataTable.getDataTable("training", patientsIdXs[p][0], patientsIdXs[p][1]));
                 
                 cumulatedFitness = dataTable.evaluate(evaluator, solution, p, i);
