@@ -14,7 +14,8 @@ import java.util.ArrayList;
 public abstract class AbstractPopEvaluator {
     
     protected ArrayList<double[]> dataTable;
-    
+    protected int[] dataLimits;
+
     public abstract void evaluateExpression(int idxExpr);
     public abstract double evaluate(int idxExpr, int k);
     
@@ -22,8 +23,19 @@ public abstract class AbstractPopEvaluator {
         this.dataTable = dataTable;
     }
     
+    public void setDataLimits(int[] dataLimits) {
+        this.dataLimits = dataLimits;
+    }
+    
     public ArrayList<double[]> getDataTable() {
         return dataTable;
+    }
+    
+    public int[] getDataLimits(int ex) {
+        int[] limits = new int[2];
+        limits[0] = dataLimits[2*ex];
+        limits[1] = dataLimits[2*ex+1];
+        return limits;
     }
     
     public double getDataTable(int idxVar, int k){

@@ -102,44 +102,48 @@ public class DataTable {
     public final void fillTrainingDataTable(ArrayList<double[]> dataTable) throws IOException {
 // exercises : exercises = {walk, cycling, hoolToe};
         String exercises = problem.properties.getProperty("Exercises");
+
         String[] exercisesTrunc = exercises.split(",");
         
         numInputColumns = 0;
         numTotalColumns = 0;
-        patientsIdXs = new int[clinicalTable.size()][2];
+        patientsIdXs = new int[clinicalTable.size()][2*exercisesTrunc.length];
         
+        String absoluteBasePath = problem.properties.getProperty("DataPathBase");
+        classifier = problem.properties.getProperty("Classifier");
+
         for (int p = 0; p < clinicalTable.size(); p++) {
             String patientID = String.valueOf((int)clinicalTable.get(p)[1]);               // Get the code GAxxxxxx
             patientPDLevel = clinicalTable.get(p)[8];              // Get the level scale H&Y
             logger.info("PatientID: GA" + patientID + ", PDlevel: " + patientPDLevel);
             
-            String absoluteBasePath = problem.properties.getProperty("DataPathBase");
-            
-            lengthIni = trainingTable.size();
-            for (int f = 0; f<=1; f++){	// For each foot
-                foot = (f == 0) ? "RightFoot_" : "LeftFoot_";
-                
-                for (String ex : exercisesTrunc) {
-                    String absoluteDataPath = absoluteBasePath + "/GA" + patientID + "/" + foot + ex + ".csv";
+            for (int ex = 0; ex < exercisesTrunc.length; ex++) { // For each exercise
+                lengthIni = trainingTable.size();
+
+                for (int f = 0; f<=1; f++){	// For each foot
+                    foot = (f == 0) ? "RightFoot_" : "LeftFoot_";
+                    
+                    String absoluteDataPath = absoluteBasePath + "/GA" + patientID + "/" + foot + exercisesTrunc[ex] + ".csv";
                     //logger.info("Data: " + absoluteDataPath);
                     readData(absoluteDataPath, trainingTable, true);
                 }
-            }
-            if (lengthIni < trainingTable.size()-1){
-                patientsIdXs[p][0] = lengthIni;
-                patientsIdXs[p][1] = trainingTable.size()-1;
-            }
-            else {
-                System.out.println("No data for Patient: GA" + patientID);
-                patientsIdXs[p][0] = lengthIni;
-                patientsIdXs[p][1] = lengthIni;
-            }
+                
+                // Store indexes: from-to for each exercise
+                if (lengthIni < trainingTable.size()-1){
+                    patientsIdXs[p][2*ex] = lengthIni;
+                    patientsIdXs[p][2*ex+1] = trainingTable.size()-1;
+                }
+                else {
+                    System.out.println("No data for Patient: GA" + patientID);
+                    patientsIdXs[p][2*ex] = -1;
+                    patientsIdXs[p][2*ex+1] = -1;
+                }
+            }                
         }
     }
     
     
     public final void readData(String dataPath, ArrayList<double[]> dataTable, Boolean addOutputLine) throws IOException {
-        classifier = problem.properties.getProperty("Classifier");
         File file = new File(dataPath);
         if (file.exists()){
             
@@ -218,7 +222,7 @@ public class DataTable {
         }
         
         if (patientNo == clinicalTable.size()-1) {            
-            if (cumulatedFitness <= bestFitness) {
+            if (cumulatedFitness < bestFitness) {
                 bestFitness = cumulatedFitness;
                 logger.info("Best FIT=" + (100 * (1 - bestFitness)) + "; Expresion=" + functionAsString);
             }   
@@ -259,7 +263,10 @@ public class DataTable {
         // Hardcode H&Y Parkinson Scale 0 to 3 (0 means no PD)
         double qFitness = 0.0;
         
-        if (currFitness >= 4.5) {
+        if (Double.isNaN(currFitness)) {
+            qFitness = 5.0;//Double.POSITIVE_INFINITY;
+        }
+        else if (currFitness >= 4.5) {
             qFitness = 5.0;
         } else if (currFitness >= 3.5) {
             qFitness = 4.0;
@@ -279,7 +286,10 @@ public class DataTable {
         // Hardcode H&Y Parkinson Scale (0 means no PD)
         double qFitness = 0.0;
         
-        if (currFitness > 0.0) {
+        if (Double.isNaN(currFitness)) {
+            qFitness = 1.0;//Double.POSITIVE_INFINITY;
+        }
+        else if (currFitness > 0.0) {
             qFitness = 1.0;
         } else {
             qFitness = 0.0;
