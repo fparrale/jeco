@@ -1,4 +1,4 @@
-<Expr> ::= (<Expr><Op><Expr>)
+<Expr> ::= (<Expr><Op><Expr>)|(<Cte>*<Expr>)|(<Expr>/<Cte>)               
            | <PreOp>(<Expr>)
            | <MyFcn>(<MySensor>,<Exercise>)
            | <MyFcn>(<MyTempFcn>,noEx)
