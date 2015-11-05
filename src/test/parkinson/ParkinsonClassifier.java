@@ -32,9 +32,12 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Properties;
+import java.util.logging.FileHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
 import jeco.algorithm.ga.SimpleGeneticAlgorithm;
 import jeco.algorithm.moge.AbstractProblemGE;
 import jeco.algorithm.moge.Phenotype;
@@ -47,9 +50,12 @@ import jeco.optimization.threads.MasterWorkerThreads;
 import jeco.problem.Solution;
 import jeco.problem.Solutions;
 import jeco.problem.Variable;
+import jeco.util.ClassifierEvaluator;
 import jeco.util.compiler.MyCompiler;
 import jeco.util.compiler.MyLoader;
 import jeco.util.logger.JecoLogger;
+import jeco.util.Maths;
+
 
 public class ParkinsonClassifier extends AbstractProblemGE {
     
@@ -60,7 +66,19 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     protected DataTable dataTable;
     protected Properties properties;
     protected AbstractPopEvaluator evaluator;
-    
+    static ParkinsonClassifier problem;
+    private static FileHandler fh;  
+    protected ArrayList<double[]> clinicalTable = new ArrayList<>();
+    protected ClassifierEvaluator classifierEval;
+    protected int[][] limitMarkers;
+    protected String classifier;
+    protected int[][] patientsIdxs;
+    protected List<Double> classRateAllFolds;
+    protected List<Double> sensitivityAllFolds;
+    protected List<Double> specificityAllFolds;
+    protected List<Double> precisionAllFolds;
+    String[] expressionAllFolds;
+            
     public ParkinsonClassifier(Properties properties, int threadId) throws IOException {
         super(properties.getProperty("BnfPathFile"), 1);
         this.properties = properties;
@@ -73,8 +91,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     @Override
     public void evaluate(Solutions<Variable<Integer>> solutions) {
         StringBuilder currentJavaFile = new StringBuilder();
-        int[][] patientsIdXs = dataTable.getPatientsIdXs();
-        
+       
         currentJavaFile.append("public class PopEvaluator").append(threadId).append(" extends jeco.operator.evaluator.AbstractPopEvaluator {\n\n");
         currentJavaFile.append("\tdouble[] var0 ={0.0};\n");
         currentJavaFile.append("\tdouble[] var1 ={1.0};\n");
@@ -363,51 +380,48 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         } catch (Exception ex) {
             logger.severe(ex.getLocalizedMessage());
         }
-        // Get clinical information
-        ArrayList<double[]> clinicalTable = dataTable.getDataTable("clinical");
         
-        // And now we evaluate all the solutions with the compiled file:
-        evaluator = null;
-        double cumulatedFitness = 0.0;
         
-        try {
-            evaluator = (AbstractPopEvaluator) (new MyLoader(compiler.getWorkDir())).loadClass("PopEvaluator" + threadId).newInstance();
-        } catch (Exception ex) {
-            logger.severe(ex.getLocalizedMessage());
-        }
-        
-        for (int i = 0; i < solutions.size(); ++i) {
-            Solution<Variable<Integer>> solution = solutions.get(i);
-            
-            // For every patient
-            for (int p = 0; p < clinicalTable.size(); p++) {
-                int fromP = -1;
-                int toP = -1;
-                
-                //System.out.println("Patient: " + p);
-                for (int ex=0; ex<patientsIdXs[p].length; ex++) {
-                    if ((patientsIdXs[p][ex] >= 0) && (fromP < 0)) {
-                        fromP = patientsIdXs[p][ex];
-                    }
-                    if ((patientsIdXs[p][ex] >= 0)) {
-                        toP = patientsIdXs[p][ex];
-                    }
-                }
-//System.out.println("From: " + fromP + ", to: " + toP);
+        limitMarkers = dataTable.getLimitMarkers();
 
-                evaluator.setDataTable((ArrayList<double[]>) dataTable.getDataTable("training", fromP, toP));
-                evaluator.setDataLimits(patientsIdXs[p]);
-                
-                cumulatedFitness = dataTable.evaluate(evaluator, solution, p, i);
-                if (Double.isNaN(cumulatedFitness)) {
-                    logger.info("I have a NaN number here");
-                }
-            }
-            solution.getObjectives().set(0, cumulatedFitness);
+        // GEt the clinical information
+        clinicalTable = dataTable.getDataTable("clinical");
+        
+        // Get the classifier and the evaluator of metrics
+        classifier = problem.properties.getProperty("Classifier");
+        
+        // If N-fold cross-validation: first run it and calculate metrics.
+        // Finally calculate the final expression
+        if ("yes".equals(problem.properties.getProperty("NFoldCrossVal"))) {
+            patientsIdxs = dataTable.getPatientsIdXs(true);
+            runClassifier(solutions, true);   
+            
+            double averageCR = Maths.mean(classRateAllFolds);
+            double stdCR = Maths.std(classRateAllFolds);
+            double averageTPR = Maths.mean(sensitivityAllFolds);
+            double stdTPR = Maths.std(sensitivityAllFolds);
+            double averageTNR = Maths.mean(specificityAllFolds);
+            double stdTNR = Maths.std(specificityAllFolds);
+            double averagePPV = Maths.mean(precisionAllFolds);
+            double stdPPV = Maths.std(precisionAllFolds);
+
+                        
+            System.out.println("averageCR: " + (100*averageCR) + " , stdCR: " + (100*stdCR));
+            System.out.println("averageTPR: " + (100*averageTPR) + " , stdTPR: " + (100*stdTPR));
+            System.out.println("averageTNR: " + (100*averageTNR) + " , stdTNR: " + (100*stdTNR));
+            System.out.println("averagePPV: " + (100*averagePPV) + " , stdPPV: " + (100*stdPPV));
+
+            //expressionAllFolds[f]            
         }
+        patientsIdxs = dataTable.getPatientsIdXs(false);
+        runClassifier(solutions, false);
+        System.out.println("Final CR: " + (100*classRateAllFolds.get(0)));
+        System.out.println("Final TPR: " + (100*sensitivityAllFolds.get(0)));
+        System.out.println("Final TNR: " + (100*specificityAllFolds.get(0)));
+        System.out.println("Final PPV: " + (100*precisionAllFolds.get(0)));
     }
     
-    
+  
     @Override
     public void evaluate(Solution<Variable<Integer>> solution) {
         logger.severe("The solutions should be already evaluated. You should not see this message.");
@@ -429,6 +443,150 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         return clone;
     }
     
+    public String[] runClassifier (Solutions<Variable<Integer>> solutions, boolean crossVal) {
+        classRateAllFolds = new ArrayList<>();
+        sensitivityAllFolds = new ArrayList<>();
+        specificityAllFolds = new ArrayList<>();
+        precisionAllFolds = new ArrayList<>();
+        expressionAllFolds = new String[patientsIdxs.length];
+        double bestClassRate = Double.NEGATIVE_INFINITY;
+        double bestSensitivity = 0;
+        double bestSpecificity = 0;
+        double bestPrecision = 0;
+        String bestExpression = null;
+        int[][] selectedFold;
+                
+        switch (classifier) {
+            case "quantizer":
+                classifierEval = new ClassifierEvaluator(Integer.valueOf(problem.properties.getProperty("MaxPDLevel")));
+            case "dichotomizer":
+                classifierEval = new ClassifierEvaluator(2);
+        }
+        
+        // And now we evaluate all the solutions with the compiled file.        
+        for (int f=0; f<patientsIdxs.length; f++) {
+            // If N-fold cros-validation chosen, do it:
+            if (crossVal) {
+                // Leave one group out
+                selectedFold = new int[patientsIdxs.length-1][patientsIdxs[0].length];
+                int rNor = 0;
+                for (int r=0; r<patientsIdxs.length; r++) {
+                    if ( r != f) {
+                        selectedFold[rNor++] = patientsIdxs[r];
+                    }
+                }
+            } else {
+                selectedFold = patientsIdxs;
+            }
+            evaluator = null;
+            
+            try {
+                evaluator = (AbstractPopEvaluator) (new MyLoader(compiler.getWorkDir())).loadClass("PopEvaluator" + threadId).newInstance();
+            } catch (Exception ex) {
+                logger.severe(ex.getLocalizedMessage());
+            }
+            
+            for (int s = 0; s < solutions.size(); ++s) {
+                Solution<Variable<Integer>> solution = solutions.get(s);
+                classifierEval.resetConfusionMatrix();
+                
+                // For every patient
+                for (int[] selectedFold1 : selectedFold) {
+                    for (int j = 0; j < selectedFold[0].length; j++) {
+                        int p = selectedFold1[j];
+                        int fromP = -1;
+                        int toP = -1;
+                        //System.out.println("Patient: " + p + ", row: "+ i + ", col: " + j);
+                        for (int ex=0; ex<limitMarkers[p].length; ex++) {
+                            if ((limitMarkers[p][ex] >= 0) && (fromP < 0)) {
+                                fromP = limitMarkers[p][ex];
+                            }
+                            if ((limitMarkers[p][ex] >= 0)) {
+                                toP = limitMarkers[p][ex];
+                            }
+                        }
+                        //System.out.println("From: " + fromP + ", to: " + toP);
+                        evaluator.setDataTable((ArrayList<double[]>) dataTable.getDataTable("training", fromP, toP));
+                        evaluator.setDataLimits(limitMarkers[p]);
+                        computeAndClassfyGE(solution, p, s);
+                    }
+                }
+                double cr = classifierEval.getClassificationRate();
+                solution.getObjectives().set(0, 1-cr);
+                
+                if (cr > bestClassRate) {
+                    bestExpression = problem.generatePhenotype(solution).toString();
+                    bestClassRate = cr;
+                    bestSensitivity = classifierEval.getSensitivity(1);
+                    bestSpecificity = classifierEval.getSpecificity(1);
+                    bestPrecision = classifierEval.getPrecision(1);
+                    logger.info("Best Classification rate=" + (100*cr) + "; Expresion=" + bestExpression);
+                }
+            }
+            classRateAllFolds.add(bestClassRate);
+            sensitivityAllFolds.add(bestSensitivity);
+            specificityAllFolds.add(bestSpecificity);
+            precisionAllFolds.add(bestPrecision);
+            expressionAllFolds[f] = bestExpression;
+        }
+        return expressionAllFolds;
+    }
+    
+    public void computeAndClassfyGE(Solution<Variable<Integer>> solution, int patientNo, int idx) {
+        double resultGE =  evaluator.evaluate(idx, -1);
+        int qResult = 0;
+        int originalValue = 0;
+        
+        switch (classifier) {
+            case "quantizer":
+                qResult = quantizer(resultGE);
+                originalValue = (int)clinicalTable.get(patientNo)[Integer.valueOf(problem.properties.getProperty("PDLevelCol"))];
+                //logger.info("Solution, " + idx + ", patient, " + patientNo + ", ResultGE, " + resultGE + ", qResult, " + qResult);
+            case "dichotomizer":
+                qResult = dichotomicer(resultGE);
+                originalValue = ((int)clinicalTable.get(patientNo)[Integer.valueOf(problem.properties.getProperty("PDLevelCol"))] > 0) ? 1 : 0;
+        }
+        classifierEval.setValue(originalValue, qResult, 1);
+    }
+    
+    public int quantizer(Double currFitness) {
+        // Hardcode H&Y Parkinson Scale 0 to 5 (0 means no PD)
+        int qFitness = 0;
+        
+        if (Double.isNaN(currFitness)) {
+            qFitness = 5;//Double.POSITIVE_INFINITY;
+        }
+        else if (currFitness >= 4.5) {
+            qFitness = 5;
+        } else if (currFitness >= 3.5) {
+            qFitness = 4;
+        } else if (currFitness >= 2.5) {
+            qFitness = 3;
+        } else if (currFitness >= 1.5){
+            qFitness = 2;
+        } else if (currFitness >= 0.5){
+            qFitness = 1;
+        } else {
+            qFitness = 0;
+        }
+        return qFitness;
+    }
+    
+    public int dichotomicer(Double currFitness) {
+        // Hardcode H&Y Parkinson Scale (0 means no PD)
+        int qFitness = 0;
+        
+        if (Double.isNaN(currFitness)) {
+            qFitness = 1;//Double.POSITIVE_INFINITY;
+        }
+        else if (currFitness > 0.0) {
+            qFitness = 1;
+        } else {
+            qFitness = 0;
+        }
+        return qFitness;
+    }
+    
     public static Properties loadProperties(String propertiesFilePath) {
         Properties properties = new Properties();
         try {
@@ -448,7 +606,17 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     public static void runGE(Properties properties, int threadId) {
         JecoLogger.setup(properties.getProperty("LoggerBasePath") + "_" + threadId + ".log", Level.parse(properties.getProperty("LoggerLevel")));
         
-        ParkinsonClassifier problem = null;
+        try {
+            // This block configure the logger with handler and formatter
+            fh = new FileHandler("/home/josueportiz/Borrar/Parkinson/kk.log");
+            logger.addHandler(fh);
+            SimpleFormatter formatter = new SimpleFormatter();
+            fh.setFormatter(formatter);
+        } catch (SecurityException | IOException e) {
+        }
+        
+        problem = null;
+        
         try {
             problem = new ParkinsonClassifier(properties, threadId);
         } catch (IOException ex) {

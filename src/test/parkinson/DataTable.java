@@ -26,16 +26,12 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.logging.FileHandler;
+import java.util.Random;
 import java.util.logging.Logger;
-import jeco.operator.evaluator.AbstractPopEvaluator;
-import jeco.problem.Solution;
-import jeco.problem.Variable;
 
 /**
- * Class to manage a normalized data table. Originally, the data table is passed
- * to this class as a regular data table. After the constructor, the data table
- * is normalized in the interval [1,2].
+ * Class to manage a data table. The data table is passed
+ * to this class as a regular data table.
  *
  * @author José Luis Risco Martín
  * @author Josué Pagán Ortiz
@@ -55,21 +51,15 @@ public class DataTable {
     protected double[] xLs = null;
     protected double[] xHs = null;
     
-    protected double bestFitness = Double.POSITIVE_INFINITY;
-    
     protected String foot = null;
     protected Double patientPDLevel = null;
     protected ArrayList<double[]> clinicalTable = new ArrayList<>();
     protected int lengthIni = 0;
     protected int lengthEnd = 0;
-    protected int[][] patientsIdXs = new int[clinicalTable.size()][2];
-    protected double[] error = new double[92];
-    protected double cumulatedFitness = 0.0;
-    protected String classifier;
-    protected FileHandler fh;  
-
- 
-    
+    protected int[][] limitMarkers;
+    protected int[][] patientsIdxs;
+    protected String exercises;
+    protected String[] exercisesTrunc;
     
     public DataTable(ParkinsonClassifier problem, String baseTrainingPath, int idxBegin, int idxEnd) throws IOException {
         this.problem = problem;
@@ -77,41 +67,28 @@ public class DataTable {
         logger.info("Reading data file ...");
         
         readData(problem.properties.getProperty("ClinicalPath"), clinicalTable, false);
-        
+
+        this.exercises = problem.properties.getProperty("Exercises");
+        this.exercisesTrunc = exercises.split(",");
+        this.limitMarkers = new int[clinicalTable.size()][2*exercisesTrunc.length];
+     
         fillTrainingDataTable(trainingTable);
         this.idxBegin = (idxBegin == -1) ? 0 : idxBegin;
         this.idxEnd = (idxEnd == -1) ? trainingTable.size() : idxEnd;
         logger.info("Evaluation interval: [" + this.idxBegin + "," + this.idxEnd + ")");
         logger.info("... done.");
-        
-        //try {
-            // This block configure the logger with handler and formatter
-        //    fh = new FileHandler("/tmp/MyLogFile.log");
-        //    logger.addHandler(fh);
-        //   SimpleFormatter formatter = new SimpleFormatter();
-        //    fh.setFormatter(formatter);
-        //} catch (SecurityException | IOException e) {
-        //}
     }
     
     public DataTable(ParkinsonClassifier problem, String baseTrainingPath) throws IOException {
         this(problem, baseTrainingPath, -1, -1);
     }
     
-    
     public final void fillTrainingDataTable(ArrayList<double[]> dataTable) throws IOException {
-// exercises : exercises = {walk, cycling, hoolToe};
-        String exercises = problem.properties.getProperty("Exercises");
-
-        String[] exercisesTrunc = exercises.split(",");
-        
         numInputColumns = 0;
         numTotalColumns = 0;
-        patientsIdXs = new int[clinicalTable.size()][2*exercisesTrunc.length];
         
         String absoluteBasePath = problem.properties.getProperty("DataPathBase");
-        classifier = problem.properties.getProperty("Classifier");
-
+        
         for (int p = 0; p < clinicalTable.size(); p++) {
             String patientID = String.valueOf((int)clinicalTable.get(p)[1]);               // Get the code GAxxxxxx
             patientPDLevel = clinicalTable.get(p)[8];              // Get the level scale H&Y
@@ -119,7 +96,7 @@ public class DataTable {
             
             for (int ex = 0; ex < exercisesTrunc.length; ex++) { // For each exercise
                 lengthIni = trainingTable.size();
-
+                
                 for (int f = 0; f<=1; f++){	// For each foot
                     foot = (f == 0) ? "RightFoot_" : "LeftFoot_";
                     
@@ -130,19 +107,18 @@ public class DataTable {
                 
                 // Store indexes: from-to for each exercise
                 if (lengthIni < trainingTable.size()-1){
-                    patientsIdXs[p][2*ex] = lengthIni;
-                    patientsIdXs[p][2*ex+1] = trainingTable.size()-1;
+                    limitMarkers[p][2*ex] = lengthIni;
+                    limitMarkers[p][2*ex+1] = trainingTable.size()-1;
                 }
                 else {
                     System.out.println("No data for Patient: GA" + patientID);
-                    patientsIdXs[p][2*ex] = -1;
-                    patientsIdXs[p][2*ex+1] = -1;
+                    limitMarkers[p][2*ex] = -1;
+                    limitMarkers[p][2*ex+1] = -1;
                 }
-            }                
+            }            
         }
     }
-    
-    
+       
     public final void readData(String dataPath, ArrayList<double[]> dataTable, Boolean addOutputLine) throws IOException {
         File file = new File(dataPath);
         if (file.exists()){
@@ -180,7 +156,6 @@ public class DataTable {
         }
     }
         
-    
     public ArrayList<double[]> getDataTable(String  type) {
         switch (type) {
             case "training":
@@ -204,97 +179,44 @@ public class DataTable {
         }
     }
 
-    public int[][] getPatientsIdXs(){
-        return patientsIdXs;
+    public int[][] getLimitMarkers(){
+        return limitMarkers;
     }
-    
-    public double evaluate(AbstractPopEvaluator evaluator, Solution<Variable<Integer>> solution, int patientNo, int idx) {
-        String functionAsString = problem.generatePhenotype(solution).toString();
-        if (patientNo == 0.0) { 
-            cumulatedFitness = 0.0;
-        }
-        error[patientNo] = computeError(evaluator, patientNo, idx);
-        switch (classifier) {
-            case "quantizer":
-                cumulatedFitness += error[patientNo]/(Integer.valueOf(problem.properties.getProperty("MaxPDLevel"))*clinicalTable.size());
-            case "dichotomizer":
-                cumulatedFitness += error[patientNo]/clinicalTable.size();
-        }
-        
-        if (patientNo == clinicalTable.size()-1) {            
-            if (cumulatedFitness < bestFitness) {
-                bestFitness = cumulatedFitness;
-                logger.info("Best FIT=" + (100 * (1 - bestFitness)) + "; Expresion=" + functionAsString);
-            }   
-        }
-        return cumulatedFitness;
-    }
-    
-    public double computeError(AbstractPopEvaluator evaluator, int patientNo, int idx) {
-        double resultGE =  evaluator.evaluate(idx, -1);
-        double qResult = 0.0;
-        double dif = 0.0;
-        
-        switch (classifier) {            
-            case "quantizer":
-                qResult = quantizer(resultGE);
-                //logger.info("Solution, " + idx + ", patient, " + patientNo + ", ResultGE, " + resultGE + ", qResult, " + qResult);
-                
-                // Get the PD H&Y level and compute fitness
-                dif = Math.abs(qResult-clinicalTable.get(patientNo)[Integer.valueOf(problem.properties.getProperty("PDLevelCol"))]);
-                
-            case "dichotomizer":
-                qResult = dichotomicer(resultGE);
-                
-                // This is equivalent to the RMSE
-                double levelPD = clinicalTable.get(patientNo)[Integer.valueOf(problem.properties.getProperty("PDLevelCol"))];
-                
-                if (levelPD == 0.0){
-                    dif = qResult;
-                }
-                else { 
-                    dif = Math.abs(qResult-1);
-                }
-        }
-        return dif;
-    }
-    
-    public double quantizer(Double currFitness) {
-        // Hardcode H&Y Parkinson Scale 0 to 3 (0 means no PD)
-        double qFitness = 0.0;
-        
-        if (Double.isNaN(currFitness)) {
-            qFitness = 5.0;//Double.POSITIVE_INFINITY;
-        }
-        else if (currFitness >= 4.5) {
-            qFitness = 5.0;
-        } else if (currFitness >= 3.5) {
-            qFitness = 4.0;
-        } else if (currFitness >= 2.5) {
-            qFitness = 3.0;
-        } else if (currFitness >= 1.5){
-            qFitness = 2.0;
-        } else if (currFitness >= 0.5){
-            qFitness = 2.0;
+
+    public int[][] getPatientsIdXs(boolean crossVal){
+        // Check N fold cross-validation
+        if (crossVal) {
+            patientsIdxs = randomizeDataSelection(clinicalTable.size(), Integer.valueOf(problem.properties.getProperty("N")), true);
         } else {
-            qFitness = 0.0;
-        }
-        return qFitness;
+            patientsIdxs = randomizeDataSelection(clinicalTable.size(), 1, false);
+        }        
+        return patientsIdxs;
     }
     
-    public double dichotomicer(Double currFitness) {
-        // Hardcode H&Y Parkinson Scale (0 means no PD)
-        double qFitness = 0.0;
+    public int[][] randomizeDataSelection(int elements, int groups, boolean randomize){
+        int[][] randomTable = new int[groups][elements/groups];
+        int[] elementsAvailable = new int[elements];
         
-        if (Double.isNaN(currFitness)) {
-            qFitness = 1.0;//Double.POSITIVE_INFINITY;
+        for (int i=0; i<= elements-1; i++){
+            elementsAvailable[i] = i;
         }
-        else if (currFitness > 0.0) {
-            qFitness = 1.0;
-        } else {
-            qFitness = 0.0;
+        if (randomize) {
+            // Implementing Fisher–Yates shuffle
+            Random rnd = new Random();
+            for (int i = elementsAvailable.length - 1; i > 0; i--) {
+                int index = rnd.nextInt(i + 1);
+                // Simple swap
+                int a = elementsAvailable[index];
+                elementsAvailable[index] = elementsAvailable[i];
+                elementsAvailable[i] = a;
+            }
         }
-        return qFitness;
+        
+        for (int i=0; i<= groups-1; i++){
+            for (int j=0; j<= (elements/groups)-1; j++){
+                randomTable[i][j] = elementsAvailable[j+(i*elements/groups)];
+            }
+        }
+        return randomTable;
     }
-    
 }
