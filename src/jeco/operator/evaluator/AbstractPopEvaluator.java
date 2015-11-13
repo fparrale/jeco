@@ -31,10 +31,10 @@ public abstract class AbstractPopEvaluator {
         return dataTable;
     }
     
-    public int[] getDataLimits(int ex) {
+    public int[] getDataLimits(int ex, int f) {
         int[] limits = new int[2];
-        limits[0] = dataLimits[2*ex];
-        limits[1] = dataLimits[2*ex+1];
+        limits[0] = dataLimits[4*ex+2*f];
+        limits[1] = dataLimits[4*ex+2*f+1];
         return limits;
     }
     
