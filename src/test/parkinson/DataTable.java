@@ -27,7 +27,9 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Random;
+import java.util.logging.Level;
 import java.util.logging.Logger;
+import jeco.util.logger.JecoLogger;
 
 /**
  * Class to manage a data table. The data table is passed
@@ -41,7 +43,6 @@ public class DataTable {
     private static final Logger logger = Logger.getLogger(DataTable.class.getName());
     
     protected ParkinsonClassifier problem;
-    protected String baseTrainingPath = null;
     protected ArrayList<double[]> trainingTable = new ArrayList<>();
     protected ArrayList<double[]> subTrainingTable = new ArrayList<>();
     protected int idxBegin = -1;
@@ -61,16 +62,18 @@ public class DataTable {
     protected String exercises;
     protected String[] exercisesTrunc;
     
-    public DataTable(ParkinsonClassifier problem, String baseTrainingPath, int idxBegin, int idxEnd) throws IOException {
+    protected String rawData;
+    protected String clinicData;
+    
+    public DataTable(ParkinsonClassifier problem, int idxBegin, int idxEnd) throws IOException {
         this.problem = problem;
-        this.baseTrainingPath = baseTrainingPath;
         logger.info("Reading data file ...");
-        
-        readData(problem.properties.getProperty("ClinicalPath"), clinicalTable, false);
+        setPaths();
+        readData(clinicData, clinicalTable, false);
 
         this.exercises = problem.properties.getProperty("Exercises");
         this.exercisesTrunc = exercises.split(",");
-        this.limitMarkers = new int[clinicalTable.size()][2*exercisesTrunc.length];
+        this.limitMarkers = new int[clinicalTable.size()][2*2*exercisesTrunc.length]; // For two feet
      
         fillTrainingDataTable(trainingTable);
         this.idxBegin = (idxBegin == -1) ? 0 : idxBegin;
@@ -79,42 +82,39 @@ public class DataTable {
         logger.info("... done.");
     }
     
-    public DataTable(ParkinsonClassifier problem, String baseTrainingPath) throws IOException {
-        this(problem, baseTrainingPath, -1, -1);
+    public DataTable(ParkinsonClassifier problem) throws IOException {
+        this(problem, -1, -1);
     }
     
     public final void fillTrainingDataTable(ArrayList<double[]> dataTable) throws IOException {
         numInputColumns = 0;
         numTotalColumns = 0;
         
-        String absoluteBasePath = problem.properties.getProperty("DataPathBase");
-        
         for (int p = 0; p < clinicalTable.size(); p++) {
-            String patientID = String.valueOf((int)clinicalTable.get(p)[1]);               // Get the code GAxxxxxx
-            patientPDLevel = clinicalTable.get(p)[8];              // Get the level scale H&Y
+            String patientID = String.valueOf((int)clinicalTable.get(p)[Integer.valueOf(problem.properties.getProperty("IDCol"))]);               // Get the code GAxxxxxx
+            patientPDLevel = clinicalTable.get(p)[Integer.valueOf(problem.properties.getProperty("PDLevelCol"))];              // Get the level scale H&Y
             logger.info("PatientID: GA" + patientID + ", PDlevel: " + patientPDLevel);
             
             for (int ex = 0; ex < exercisesTrunc.length; ex++) { // For each exercise
-                lengthIni = trainingTable.size();
                 
                 for (int f = 0; f<=1; f++){	// For each foot
+                    lengthIni = trainingTable.size();
                     foot = (f == 0) ? "RightFoot_" : "LeftFoot_";
                     
-                    String absoluteDataPath = absoluteBasePath + "/GA" + patientID + "/" + foot + exercisesTrunc[ex] + ".csv";
-                    //logger.info("Data: " + absoluteDataPath);
+                    String absoluteDataPath = rawData + "/GA" + patientID + "/" + foot + exercisesTrunc[ex] + ".csv";
                     readData(absoluteDataPath, trainingTable, true);
-                }
-                
-                // Store indexes: from-to for each exercise
-                if (lengthIni < trainingTable.size()-1){
-                    limitMarkers[p][2*ex] = lengthIni;
-                    limitMarkers[p][2*ex+1] = trainingTable.size()-1;
-                }
-                else {
-                    System.out.println("No data for Patient: GA" + patientID);
-                    limitMarkers[p][2*ex] = -1;
-                    limitMarkers[p][2*ex+1] = -1;
-                }
+                    
+                    // Store indexes: from-to for each FOOT
+                    if (lengthIni < trainingTable.size()-1){
+                        limitMarkers[p][4*ex+2*f] = lengthIni;
+                        limitMarkers[p][4*ex+2*f+1] = trainingTable.size()-1;
+                    }
+                    else {
+                        System.out.println("No data for Patient: GA" + patientID);
+                        limitMarkers[p][4*ex+2*f] = -1;
+                        limitMarkers[p][4*ex+2*f+1] = -1;
+                    }
+                }               
             }            
         }
     }
@@ -171,7 +171,7 @@ public class DataTable {
         switch (type) {
             case "training":
                 subTrainingTable = new ArrayList(trainingTable.subList(idx1, idx2));
-                return new ArrayList(trainingTable.subList(idx1, idx2));
+                return subTrainingTable;
             case "clinical":
                 return new ArrayList(clinicalTable.subList(idx1, idx2));
             default:                
@@ -218,5 +218,11 @@ public class DataTable {
             }
         }
         return randomTable;
+    }
+    
+    public final void setPaths() {
+        String dataPath = problem.properties.getProperty("DataPathBase");
+        rawData = (dataPath + problem.properties.getProperty("RawDataPath"));
+        clinicData = (dataPath + problem.properties.getProperty("ClinicalPath"));
     }
 }

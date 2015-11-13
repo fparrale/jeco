@@ -32,12 +32,9 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Properties;
-import java.util.logging.FileHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.logging.SimpleFormatter;
 import jeco.algorithm.ga.SimpleGeneticAlgorithm;
 import jeco.algorithm.moge.AbstractProblemGE;
 import jeco.algorithm.moge.Phenotype;
@@ -50,7 +47,8 @@ import jeco.optimization.threads.MasterWorkerThreads;
 import jeco.problem.Solution;
 import jeco.problem.Solutions;
 import jeco.problem.Variable;
-import jeco.util.ClassifierEvaluator;
+import jeco.util.classifier.ClassifierEvaluator;
+import jeco.util.classifier.Quantizer;
 import jeco.util.compiler.MyCompiler;
 import jeco.util.compiler.MyLoader;
 import jeco.util.logger.JecoLogger;
@@ -59,39 +57,50 @@ import jeco.util.Maths;
 
 public class ParkinsonClassifier extends AbstractProblemGE {
     
-    private static final Logger logger = Logger.getLogger(ParkinsonClassifier.class.getName());
+    private static final Logger logger = Logger.getLogger(ParkinsonClassifier.class.getName() + "info");
     
     protected int threadId;
     protected MyCompiler compiler;
-    protected DataTable dataTable;
+    protected DataTable dataTable = null;
     protected Properties properties;
     protected AbstractPopEvaluator evaluator;
-    static ParkinsonClassifier problem;
-    private static FileHandler fh;  
+    ParkinsonClassifier problem;
     protected ArrayList<double[]> clinicalTable = new ArrayList<>();
     protected ClassifierEvaluator classifierEval;
+    protected Quantizer classifier;
     protected int[][] limitMarkers;
-    protected String classifier;
-    protected int[][] patientsIdxs;
-    protected List<Double> classRateAllFolds;
-    protected List<Double> sensitivityAllFolds;
-    protected List<Double> specificityAllFolds;
-    protected List<Double> precisionAllFolds;
-    String[] expressionAllFolds;
-            
+    protected String kindClassifier;
+    int computeFoldNumber;
+    int[][] currentData;
+    SimpleGeneticAlgorithm<Variable<Integer>> algorithm;
+    protected int pdLevelCol;
+    
+    protected double bestClassRate = Double.NEGATIVE_INFINITY;
+    protected double bestMacroAvgTPR = Double.NEGATIVE_INFINITY;
+    protected double bestMacroAvgTNR = Double.NEGATIVE_INFINITY;
+    protected double bestMacroAvgF = Double.NEGATIVE_INFINITY;
+    protected double bestMacroAvgPPV = Double.NEGATIVE_INFINITY;
+    protected String bestExpression = null;
+    protected Solution<Variable<Integer>> bestSolution = null;
+    protected int bestSolIdx;
+    protected int bestNumGeneration;
+    
+    
     public ParkinsonClassifier(Properties properties, int threadId) throws IOException {
         super(properties.getProperty("BnfPathFile"), 1);
         this.properties = properties;
         this.threadId = threadId;
         compiler = new MyCompiler(properties);
-        dataTable = new DataTable(this, properties.getProperty("DataPath"), Integer.valueOf(properties.getProperty("IdxBegin", "-1")), Integer.valueOf(properties.getProperty("IdxEnd", "-1")));
     }
     
     
     @Override
     public void evaluate(Solutions<Variable<Integer>> solutions) {
         StringBuilder currentJavaFile = new StringBuilder();
-       
+        int numOfIncorrectSolutions = 0;
+        
+        currentJavaFile.append("import jeco.util.Maths;\n");
+        
         currentJavaFile.append("public class PopEvaluator").append(threadId).append(" extends jeco.operator.evaluator.AbstractPopEvaluator {\n\n");
         currentJavaFile.append("\tdouble[] var0 ={0.0};\n");
         currentJavaFile.append("\tdouble[] var1 ={1.0};\n");
@@ -105,204 +114,71 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\tint[] ex2 ={2};\n");
         currentJavaFile.append("\tint[] ex3 ={3};\n");
         currentJavaFile.append("\tint[] ex4 ={4};\n");
+        currentJavaFile.append("\tint[] ex5 ={5};\n");
+        currentJavaFile.append("\tint[] ex6 ={6};\n");
         currentJavaFile.append("\tint[] noEx ={-1};\n");
-
-
+        currentJavaFile.append("\t\n");
+        currentJavaFile.append("\tint[] f0 ={0};\n");
+        currentJavaFile.append("\tint[] f1 ={1};\n");
+        currentJavaFile.append("\tint[] noFoot ={-1};\n");
+        
         /**
          * Implementation of functions of the Grammar
          * */
-               
-        currentJavaFile.append("public double MyAvg(double[] array, int[] ex) {\n");
-        currentJavaFile.append("\tdouble res = 0.0;\n");
-        currentJavaFile.append("\tdouble[] data = getData(array, ex);\n");
-        currentJavaFile.append("\tif (!Double.isNaN(data[0])){\n");
-        currentJavaFile.append("\tint[] limits = {0, data.length-1};\n");
-        currentJavaFile.append("\tres = MySum(data, limits)/data.length;\n");
-        currentJavaFile.append("\treturn res;\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\treturn Double.POSITIVE_INFINITY;\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\t}\n");   
-    
-        currentJavaFile.append("public double MySum(double[] array, int[] ex) {\n");
-        currentJavaFile.append("\t\tdouble res = 0.0;\n");
-        currentJavaFile.append("\tdouble[] data = getData(array, ex);\n");
-        currentJavaFile.append("\tif (!Double.isNaN(data[0])){\n");
-        currentJavaFile.append("\t\tfor (int i = 0; i <= data.length-1; i++) {\n");
-        currentJavaFile.append("\t\t\tres += data[i];\n");
-        currentJavaFile.append("\t\t}\n");
-        currentJavaFile.append("\t\treturn res;\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\treturn Double.POSITIVE_INFINITY;\n");
-        currentJavaFile.append("\t}\n");        
-        currentJavaFile.append("\t}\n");
-               
-       
-        currentJavaFile.append("public double MyMax(double[] array, int[] ex) {\n");
-        currentJavaFile.append("\tdouble[] data = getData(array, ex);\n");
-        currentJavaFile.append("\tif (!Double.isNaN(data[0])){\n");
-        currentJavaFile.append("\tdouble mymax = Double.NEGATIVE_INFINITY;\n");
-        currentJavaFile.append("\tfor(int i=0; i<=data.length-1; i++){\n");
-        currentJavaFile.append("\tif (data[i] > mymax) {\n");
-        currentJavaFile.append("\tmymax = data[i];\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("}\n");
-        currentJavaFile.append("\treturn mymax;\n");
-        currentJavaFile.append("}\n");
-        currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\treturn Double.POSITIVE_INFINITY;\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("}\n");
-        
-        currentJavaFile.append("public double MyMin(double[] array, int[] ex) {\n");
-        currentJavaFile.append("\tdouble[] data = getData(array, ex);\n");
-        currentJavaFile.append("\tif (!Double.isNaN(data[0])){\n");
-        currentJavaFile.append("\tdouble mymin = Double.POSITIVE_INFINITY;\n");
-        currentJavaFile.append("\tfor(int i=0; i<=data.length-1; i++){\n");
-        currentJavaFile.append("\tif (data[i] < mymin) {\n");
-        currentJavaFile.append("\tmymin = data[i];\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\treturn mymin;\n");
-        currentJavaFile.append("}\n");
-        currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\treturn Double.POSITIVE_INFINITY;\n");
-        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("public double MyAvg(double[] array, int[] ex, int[] foot) {\n");
+        currentJavaFile.append("\treturn Maths.mean(getData(array, ex, foot));\n");
         currentJavaFile.append("\t}\n");
         
-        currentJavaFile.append("\tpublic double MyStd(double[] array, int[] ex) {\n");
-        currentJavaFile.append("\tdouble[] data = getData(array, ex);\n");
-        currentJavaFile.append("\tint[] limits = {0, data.length-1};\n");
-        currentJavaFile.append("\tif (!Double.isNaN(data[0])){\n");
-        currentJavaFile.append("\tdouble mystd;\n");
-        currentJavaFile.append("\tdouble[] res = new double[data.length];\n");
-        currentJavaFile.append("\tdouble avg = MyAvg(data, limits);\n");
-        currentJavaFile.append("\tfor (int i = 0; i <= data.length-1; i++) {\n");
-        currentJavaFile.append("\tres[i] = Math.pow(data[i] - avg, 2);\n");
+        currentJavaFile.append("public double MySum(double[] array, int[] ex, int[] foot) {\n");
+        currentJavaFile.append("\treturn Maths.sum(getData(array, ex, foot));\n");
         currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\tmystd = Math.pow(MyAvg(res, limits), 0.5);\n");
-        currentJavaFile.append("\treturn mystd;\n");
+        
+        currentJavaFile.append("public double MyMax(double[] array, int[] ex, int[] foot) {\n");
+        currentJavaFile.append("\treturn Maths.max(getData(array, ex, foot));\n");
         currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\treturn Double.POSITIVE_INFINITY;\n");
+        
+        currentJavaFile.append("public double MyMin(double[] array, int[] ex, int[] foot) {\n");
+        currentJavaFile.append("\treturn Maths.min(getData(array, ex, foot));\n");
         currentJavaFile.append("\t}\n");
+        
+        currentJavaFile.append("\tpublic double MyStd(double[] array, int[] ex, int[] foot) {\n");
+        currentJavaFile.append("\treturn Maths.std(getData(array, ex, foot));\n");
         currentJavaFile.append("\t}\n");
         
         
-        currentJavaFile.append("\tpublic double MyTotalVar(double[] array, int[] ex) {\n");
-        currentJavaFile.append("\tdouble[] data = getData(array, ex);\n");
-        currentJavaFile.append("\tif (!Double.isNaN(data[0])){\n");
-        currentJavaFile.append("\tdouble mytotalvar = 0.0;\n");
-        currentJavaFile.append("\tdouble[] derv = new double[data.length-1];\n");
-        currentJavaFile.append("\tfor(int i=0; i<=data.length-2; i++){\n");
-        currentJavaFile.append("\tderv[i] = data[i+1]-data[i];\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\tfor (int i = 0; i <= derv.length-1; i++) {\n");
-        currentJavaFile.append("\tmytotalvar += Math.abs(derv[i]);\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\treturn mytotalvar;\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\treturn Double.POSITIVE_INFINITY;\n");
-        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("\tpublic double MyTotalVar(double[] array, int[] ex, int[] foot) {\n");
+        currentJavaFile.append("\treturn Maths.totalVar(getData(array, ex, foot));\n");
         currentJavaFile.append("\t}\n");
         
         
-        currentJavaFile.append("public double MyPod(double[] array, int[] ex) {\n");
-        currentJavaFile.append("\tdouble[] data = getData(array, ex);\n");
-        currentJavaFile.append("\tif (!Double.isNaN(data[0])){\n");        
-        currentJavaFile.append("\tdouble mypod = 1.0;\n");
-        currentJavaFile.append("\tfor (int i = 0; i <= data.length-1; i++) {\n");
-        currentJavaFile.append("\tmypod *= data[i];\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\treturn mypod;\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\treturn Double.POSITIVE_INFINITY;\n");
-        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("public double MyPod(double[] array, int[] ex, int[] foot) {\n");
+        currentJavaFile.append("\treturn Maths.pod(getData(array, ex, foot));\n");
         currentJavaFile.append("\t}\n");
         
-        currentJavaFile.append("public double MyGeoAvg(double[] array, int[] ex) {\n");
-        currentJavaFile.append("\tdouble[] data = getData(array, ex);\n");
-        currentJavaFile.append("\tif (!Double.isNaN(data[0])){\n");   
-        currentJavaFile.append("\tdouble mygeoavg = 0.0;\n");
-        currentJavaFile.append("\tint[] limits = {0, data.length-1};\n");
-        currentJavaFile.append("\tmygeoavg = Math.pow(MyPod(data, limits), 1/(data.length));\n");
-        currentJavaFile.append("\treturn mygeoavg;\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\treturn Double.POSITIVE_INFINITY;\n");
-        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("public double MyGeoAvg(double[] array, int[] ex, int[] foot) {\n");
+        currentJavaFile.append("\treturn Maths.geoMean(getData(array, ex, foot));\n");
         currentJavaFile.append("\t}\n");
         
-        
-        currentJavaFile.append("\tpublic double[] MyPow(double[] array, int[] ex, double pow) {\n");
-        currentJavaFile.append("\tdouble[] data = getData(array, ex);\n");
-        currentJavaFile.append("\tif (!Double.isNaN(data[0])){\n");           
-        currentJavaFile.append("\tfor (int i = 0; i <= data.length-1; i++) {\n");
-        currentJavaFile.append("\tdata[i] = Math.pow(data[i], pow);\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\treturn data;\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\treturn new double[] {Double.NaN};\n");
-        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("\tpublic double[] MyPow(double[] array, int[] ex, int[] foot, double pow) {\n");
+        currentJavaFile.append("\treturn Maths.pow(getData(array, ex, foot), pow);\n");
         currentJavaFile.append("\t}\n");
         
-        currentJavaFile.append("public double[] MyConv(double[] array1, double[] array2, int[] ex1, int[] ex2) {\n");
-        currentJavaFile.append("\tdouble[] x = getData(array1, ex1);\n");
-        currentJavaFile.append("\tdouble[] h = getData(array2, ex2);\n");
-        currentJavaFile.append("\tif ((!Double.isNaN(x[0])) && (!Double.isNaN(h[0]))){\n");           
-        currentJavaFile.append("\tdouble[] myconv = new double[x.length + h.length - 1];\n");
-        currentJavaFile.append("\tfor (int i = 0; i <= myconv.length -1; i++ )	{\n");
-        currentJavaFile.append("\tmyconv[i] = 0;                       // set to zero before sum\n");
-        currentJavaFile.append("\tfor (int j = 0; j <= h.length-1; j++ ) {\n");
-        currentJavaFile.append("\tif ((j <= i) && ((i-j) < x.length)) {\n");
-        currentJavaFile.append("\tmyconv[i] += x[i - j] * h[j];    // convolve: multiply and accumulate\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\treturn myconv;\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\treturn new double[] {Double.NaN};\n");
-        currentJavaFile.append("\t}\n");
+        currentJavaFile.append("public double[] MyConv(double[] array1, double[] array2, int[] ex1, int[] ex2, int[] foot1, int[] foot2) {\n");
+        currentJavaFile.append("\treturn Maths.conv(getData(array1, ex1, foot1), getData(array2, ex2, foot2));\n");
         currentJavaFile.append("\t}\n");
         
-        currentJavaFile.append("\tpublic double[] MyDiff(double[] array, int[] ex) {\n");
-        currentJavaFile.append("\tdouble[] data = getData(array, ex);\n");
-        currentJavaFile.append("\tif (!Double.isNaN(data[0])){\n");
-        currentJavaFile.append("\tdouble[] diff = new double[data.length-1];\n");
-        currentJavaFile.append("\tfor (int i = 1; i <= data.length-1; i++) {\n");
-        currentJavaFile.append("\tdiff[i-1] = data[i] - data[i-1];\n");
+        currentJavaFile.append("\tpublic double[] MyDiff(double[] array, int[] ex, int[] foot) {\n");
+        currentJavaFile.append("\treturn Maths.diff(getData(array, ex, foot));\n");
         currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\treturn diff;\n");
+        
+        currentJavaFile.append("\tpublic double[] MyAbs(double[] array, int[] ex, int[] foot) {\n");
+        currentJavaFile.append("\treturn Maths.abs(getData(array, ex, foot));\n");
         currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\treturn new double[] {Double.NaN};\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\t\n");
-
-        currentJavaFile.append("\tpublic double[] MyAbs(double[] array, int[] ex) {\n");
-        currentJavaFile.append("\tdouble[] data = getData(array, ex);\n");
-        currentJavaFile.append("\tif (!Double.isNaN(data[0])){\n");
-        currentJavaFile.append("\tfor (int i = 0; i <= data.length-1; i++) {\n");
-        currentJavaFile.append("\tdata[i] = Math.abs(data[i]);\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\treturn data;\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\treturn new double[] {Double.NaN};\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\t}\n");
-        currentJavaFile.append("\t\n");
+        
         /**
          * Utils
          * */
-        currentJavaFile.append("\tpublic double[] getData(double[] array, int[] ex) {\n");
+        currentJavaFile.append("\tpublic double[] getData(double[] array, int[] ex, int[] foot) {\n");
         currentJavaFile.append("\tif (array.length > 1) {\n");
         currentJavaFile.append("\tdouble[] data = array;\n");
         currentJavaFile.append("\treturn data;\n");
@@ -311,7 +187,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\treturn new double[] {Double.NaN};\n");
         currentJavaFile.append("\t}\n");
         currentJavaFile.append("\telse {\n");
-        currentJavaFile.append("\tint[] allIndexes = getDataLimits(ex[0]);\n");
+        currentJavaFile.append("\tint[] allIndexes = getDataLimits(ex[0], foot[0]);\n");
         currentJavaFile.append("\tif ((allIndexes[0] >= 0) && (allIndexes[1] >= 0) && (!Double.isNaN(array[0]))){\n");
         currentJavaFile.append("\tdouble[] data = new double[allIndexes[1]-allIndexes[0]+1];\n");
         currentJavaFile.append("\tfor(int i=0; i<=allIndexes[1]-allIndexes[0]; i++){\n");
@@ -334,6 +210,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\t\ttry {\n");
         
         currentJavaFile.append("\t\t\tswitch(idxExpr) {\n");
+        numOfIncorrectSolutions = 0;
         for (int i = 0; i < solutions.size(); ++i) {
             currentJavaFile.append("\t\t\t\tcase ").append(i).append(":\n");
             Solution<Variable<Integer>> solution = solutions.get(i);
@@ -341,6 +218,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             if (correctSol) {
                 currentJavaFile.append("\t\t\t\t\tresult = ").append(phenotype.toString()).append(";\n");
             } else {
+                numOfIncorrectSolutions += 1;
                 currentJavaFile.append("\t\t\t\t\tresult = Double.POSITIVE_INFINITY;\n");
             }
             currentJavaFile.append("\t\t\t\t\tbreak;\n");
@@ -350,12 +228,13 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\t\t\t\t\tresult = Double.POSITIVE_INFINITY;\n");
         currentJavaFile.append("\t\t\t}\n"); // End switch
         
+        logger.info("incorrect_sols," + numOfIncorrectSolutions);
+        
         currentJavaFile.append("\t\t}\n"); // End try
         currentJavaFile.append("\t\tcatch (Exception ee) {\n");
         currentJavaFile.append("\t\t\tSystem.err.println(ee.fillInStackTrace());\n");
-        currentJavaFile.append("\t\t\tSystem.err.println(\"Exception trying to calculate the GE result.\");\n");
+        //currentJavaFile.append("\t\t\tSystem.err.println(\"Exception trying to calculate the GE result.\");\n");
         currentJavaFile.append("\t\t\tresult = Double.NaN;\n");
-        
         currentJavaFile.append("\t\t}\n"); // End catch
         currentJavaFile.append("\t\tif(Double.isNaN(result)) {\n");
         //currentJavaFile.append("\t\t\tSystem.err.println(\"GE result is NaN.\");\n");
@@ -381,47 +260,54 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             logger.severe(ex.getLocalizedMessage());
         }
         
+        //runClassifier(solutions);
         
-        limitMarkers = dataTable.getLimitMarkers();
-
-        // GEt the clinical information
-        clinicalTable = dataTable.getDataTable("clinical");
-        
-        // Get the classifier and the evaluator of metrics
-        classifier = problem.properties.getProperty("Classifier");
-        
-        // If N-fold cross-validation: first run it and calculate metrics.
-        // Finally calculate the final expression
-        if ("yes".equals(problem.properties.getProperty("NFoldCrossVal"))) {
-            patientsIdxs = dataTable.getPatientsIdXs(true);
-            runClassifier(solutions, true);   
-            
-            double averageCR = Maths.mean(classRateAllFolds);
-            double stdCR = Maths.std(classRateAllFolds);
-            double averageTPR = Maths.mean(sensitivityAllFolds);
-            double stdTPR = Maths.std(sensitivityAllFolds);
-            double averageTNR = Maths.mean(specificityAllFolds);
-            double stdTNR = Maths.std(specificityAllFolds);
-            double averagePPV = Maths.mean(precisionAllFolds);
-            double stdPPV = Maths.std(precisionAllFolds);
-
-                        
-            System.out.println("averageCR: " + (100*averageCR) + " , stdCR: " + (100*stdCR));
-            System.out.println("averageTPR: " + (100*averageTPR) + " , stdTPR: " + (100*stdTPR));
-            System.out.println("averageTNR: " + (100*averageTNR) + " , stdTNR: " + (100*stdTNR));
-            System.out.println("averagePPV: " + (100*averagePPV) + " , stdPPV: " + (100*stdPPV));
-
-            //expressionAllFolds[f]            
+        // For each folding apply the solutions.
+        // Evaluate all the solutions with the compiled file.
+        evaluator = null;
+        try {
+            evaluator = (AbstractPopEvaluator) (new MyLoader(compiler.getWorkDir())).loadClass("PopEvaluator" + threadId).newInstance();
+        } catch (Exception ex) {
+            logger.severe(ex.getLocalizedMessage());
         }
-        patientsIdxs = dataTable.getPatientsIdXs(false);
-        runClassifier(solutions, false);
-        System.out.println("Final CR: " + (100*classRateAllFolds.get(0)));
-        System.out.println("Final TPR: " + (100*sensitivityAllFolds.get(0)));
-        System.out.println("Final TNR: " + (100*specificityAllFolds.get(0)));
-        System.out.println("Final PPV: " + (100*precisionAllFolds.get(0)));
+        
+        
+        // For each solution
+        for (int s = 0; s < solutions.size(); ++s) {
+            Solution<Variable<Integer>> solution = solutions.get(s);
+            classifierEval.resetConfusionMatrix();
+            
+            computeFolds(evaluator, solution, s, currentData);
+            
+            double cr = classifierEval.getClassificationRate();
+            double macroPPV = classifierEval.getMacroAveragePrecision();
+            double macroTPR = classifierEval.getMacroAverageSensitivity();
+            double macroTNR = classifierEval.getMacroAverageSpecificity();
+            double macroFvalue = classifierEval.getMacroFValue();
+            
+            // Return the value to the algorithm:
+            solution.getObjectives().set(0, 1-macroFvalue); //(1-macroFvalue) to maximize the F-value
+// josue (problema de QUERER LEER CURRENT GENERATION):
+//logger.info("training," + CURRENT_FOLD + "," + algorithm.getCurrentGeneration() + "," + s + "," + macroFvalue + "," + cr +  "," + macroPPV + "," + macroTPR);
+            
+            if (macroFvalue > bestMacroAvgF) {
+                bestSolution = solution;
+                bestSolIdx = s;
+                bestExpression = generatePhenotype(solution).toString();
+                bestClassRate = cr;
+                bestMacroAvgTPR = macroTPR;
+                bestMacroAvgTNR = macroTNR;
+                bestMacroAvgPPV = macroPPV;
+                bestMacroAvgF = macroFvalue;
+                logger.info("BEST FOUND, Thread-Id: " + threadId + ", Macro F-value=" + (100*macroFvalue) + "; Expresion=" + bestExpression);
+            }
+        }        
+// josue:
+//logger.info("training," + CURRENT_FOLD + "," + bestNumGeneration + "," + bestSolIdx + "," + (100*bestMacroAvgF) + "," + (100*bestClassRate) +  "," + (100*bestMacroAvgPPV) + "," + (100*bestMacroAvgTPR) + "," + (100*bestMacroAvgTNR) + "," + bestExpression);
     }
     
-  
+    
+//josue: para hacer la evaluacion del fold, llamo a evaluate(bestSolution) y viene aqui, y "penca":   
     @Override
     public void evaluate(Solution<Variable<Integer>> solution) {
         logger.severe("The solutions should be already evaluated. You should not see this message.");
@@ -443,149 +329,45 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         return clone;
     }
     
-    public String[] runClassifier (Solutions<Variable<Integer>> solutions, boolean crossVal) {
-        classRateAllFolds = new ArrayList<>();
-        sensitivityAllFolds = new ArrayList<>();
-        specificityAllFolds = new ArrayList<>();
-        precisionAllFolds = new ArrayList<>();
-        expressionAllFolds = new String[patientsIdxs.length];
-        double bestClassRate = Double.NEGATIVE_INFINITY;
-        double bestSensitivity = 0;
-        double bestSpecificity = 0;
-        double bestPrecision = 0;
-        String bestExpression = null;
-        int[][] selectedFold;
-                
-        switch (classifier) {
-            case "quantizer":
-                classifierEval = new ClassifierEvaluator(Integer.valueOf(problem.properties.getProperty("MaxPDLevel")));
-            case "dichotomizer":
-                classifierEval = new ClassifierEvaluator(2);
-        }
-        
-        // And now we evaluate all the solutions with the compiled file.        
-        for (int f=0; f<patientsIdxs.length; f++) {
-            // If N-fold cros-validation chosen, do it:
-            if (crossVal) {
-                // Leave one group out
-                selectedFold = new int[patientsIdxs.length-1][patientsIdxs[0].length];
-                int rNor = 0;
-                for (int r=0; r<patientsIdxs.length; r++) {
-                    if ( r != f) {
-                        selectedFold[rNor++] = patientsIdxs[r];
+    public void computeFolds(AbstractPopEvaluator evaluator, Solution<Variable<Integer>> solution, int solIdx, int[][] data) {
+        // For every patient apply the solution
+        for (int[] folds1 : data) {
+            for (int j = 0; j < data[0].length; j++) {
+                int p = folds1[j];
+                int fromP = -1;
+                int toP = -1;
+                //System.out.println("Patient: " + p + ", row: "+ i + ", col: " + j);
+                for (int ex=0; ex<limitMarkers[p].length; ex++) {
+                    if ((limitMarkers[p][ex] >= 0) && (fromP < 0)) {
+                        fromP = limitMarkers[p][ex];
+                    }
+                    if ((limitMarkers[p][ex] >= 0)) {
+                        toP = limitMarkers[p][ex];
                     }
                 }
-            } else {
-                selectedFold = patientsIdxs;
-            }
-            evaluator = null;
-            
-            try {
-                evaluator = (AbstractPopEvaluator) (new MyLoader(compiler.getWorkDir())).loadClass("PopEvaluator" + threadId).newInstance();
-            } catch (Exception ex) {
-                logger.severe(ex.getLocalizedMessage());
-            }
-            
-            for (int s = 0; s < solutions.size(); ++s) {
-                Solution<Variable<Integer>> solution = solutions.get(s);
-                classifierEval.resetConfusionMatrix();
+                //System.out.println("From: " + fromP + ", to: " + toP);
+                evaluator.setDataTable((ArrayList<double[]>) dataTable.getDataTable("training", fromP, toP));
+                evaluator.setDataLimits(limitMarkers[p]);
                 
-                // For every patient
-                for (int[] selectedFold1 : selectedFold) {
-                    for (int j = 0; j < selectedFold[0].length; j++) {
-                        int p = selectedFold1[j];
-                        int fromP = -1;
-                        int toP = -1;
-                        //System.out.println("Patient: " + p + ", row: "+ i + ", col: " + j);
-                        for (int ex=0; ex<limitMarkers[p].length; ex++) {
-                            if ((limitMarkers[p][ex] >= 0) && (fromP < 0)) {
-                                fromP = limitMarkers[p][ex];
-                            }
-                            if ((limitMarkers[p][ex] >= 0)) {
-                                toP = limitMarkers[p][ex];
-                            }
-                        }
-                        //System.out.println("From: " + fromP + ", to: " + toP);
-                        evaluator.setDataTable((ArrayList<double[]>) dataTable.getDataTable("training", fromP, toP));
-                        evaluator.setDataLimits(limitMarkers[p]);
-                        computeAndClassfyGE(solution, p, s);
-                    }
-                }
-                double cr = classifierEval.getClassificationRate();
-                solution.getObjectives().set(0, 1-cr);
+                // Compute and classify GE:
+                double resultGE = evaluator.evaluate(solIdx, -1);
+                int originalValue = 0;
+                int qResult;
                 
-                if (cr > bestClassRate) {
-                    bestExpression = problem.generatePhenotype(solution).toString();
-                    bestClassRate = cr;
-                    bestSensitivity = classifierEval.getSensitivity(1);
-                    bestSpecificity = classifierEval.getSpecificity(1);
-                    bestPrecision = classifierEval.getPrecision(1);
-                    logger.info("Best Classification rate=" + (100*cr) + "; Expresion=" + bestExpression);
+                qResult = classifier.getQ(resultGE);
+                switch (kindClassifier) {
+                    case "quantizer":
+                        originalValue = (int)clinicalTable.get(p)[pdLevelCol];
+                        break;
+                    case "dichotomizer":
+                        originalValue = ((int)clinicalTable.get(p)[pdLevelCol] > 0) ? 1 : 0;
+                        break;
                 }
+                classifierEval.setValue(originalValue, qResult, 1);
             }
-            classRateAllFolds.add(bestClassRate);
-            sensitivityAllFolds.add(bestSensitivity);
-            specificityAllFolds.add(bestSpecificity);
-            precisionAllFolds.add(bestPrecision);
-            expressionAllFolds[f] = bestExpression;
         }
-        return expressionAllFolds;
     }
     
-    public void computeAndClassfyGE(Solution<Variable<Integer>> solution, int patientNo, int idx) {
-        double resultGE =  evaluator.evaluate(idx, -1);
-        int qResult = 0;
-        int originalValue = 0;
-        
-        switch (classifier) {
-            case "quantizer":
-                qResult = quantizer(resultGE);
-                originalValue = (int)clinicalTable.get(patientNo)[Integer.valueOf(problem.properties.getProperty("PDLevelCol"))];
-                //logger.info("Solution, " + idx + ", patient, " + patientNo + ", ResultGE, " + resultGE + ", qResult, " + qResult);
-            case "dichotomizer":
-                qResult = dichotomicer(resultGE);
-                originalValue = ((int)clinicalTable.get(patientNo)[Integer.valueOf(problem.properties.getProperty("PDLevelCol"))] > 0) ? 1 : 0;
-        }
-        classifierEval.setValue(originalValue, qResult, 1);
-    }
-    
-    public int quantizer(Double currFitness) {
-        // Hardcode H&Y Parkinson Scale 0 to 5 (0 means no PD)
-        int qFitness = 0;
-        
-        if (Double.isNaN(currFitness)) {
-            qFitness = 5;//Double.POSITIVE_INFINITY;
-        }
-        else if (currFitness >= 4.5) {
-            qFitness = 5;
-        } else if (currFitness >= 3.5) {
-            qFitness = 4;
-        } else if (currFitness >= 2.5) {
-            qFitness = 3;
-        } else if (currFitness >= 1.5){
-            qFitness = 2;
-        } else if (currFitness >= 0.5){
-            qFitness = 1;
-        } else {
-            qFitness = 0;
-        }
-        return qFitness;
-    }
-    
-    public int dichotomicer(Double currFitness) {
-        // Hardcode H&Y Parkinson Scale (0 means no PD)
-        int qFitness = 0;
-        
-        if (Double.isNaN(currFitness)) {
-            qFitness = 1;//Double.POSITIVE_INFINITY;
-        }
-        else if (currFitness > 0.0) {
-            qFitness = 1;
-        } else {
-            qFitness = 0;
-        }
-        return qFitness;
-    }
     
     public static Properties loadProperties(String propertiesFilePath) {
         Properties properties = new Properties();
@@ -603,39 +385,62 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         return properties;
     }
     
-    public static void runGE(Properties properties, int threadId) {
-        JecoLogger.setup(properties.getProperty("LoggerBasePath") + "_" + threadId + ".log", Level.parse(properties.getProperty("LoggerLevel")));
+    public int[][] getTrainingFolds(int[][] patientsIdxs, int currentFolding) {
+        int[][] trainingFolds = new int[patientsIdxs.length-1][patientsIdxs[0].length];
         
-        try {
-            // This block configure the logger with handler and formatter
-            fh = new FileHandler("/home/josueportiz/Borrar/Parkinson/kk.log");
-            logger.addHandler(fh);
-            SimpleFormatter formatter = new SimpleFormatter();
-            fh.setFormatter(formatter);
-        } catch (SecurityException | IOException e) {
+        // Leave one group out
+        int rNor = 0;
+        for (int r=0; r<patientsIdxs.length; r++) {
+            if ( r != currentFolding) {
+                trainingFolds[rNor++] = patientsIdxs[r];
+            }
+        }
+        return trainingFolds;
+    }
+    
+    public int[][] getValidationFold(int[][] patientsIdxs, int currentFolding) {
+        int[][] validationFold = new int[1][patientsIdxs[0].length];
+        validationFold[0] = patientsIdxs[currentFolding];
+        return validationFold;
+    }
+    
+    
+    public void loadData(boolean training, int folding) throws IOException{
+        dataTable = new DataTable(this, Integer.valueOf(properties.getProperty("IdxBegin", "-1")), Integer.valueOf(properties.getProperty("IdxEnd", "-1")));
+        // Get the clinical information
+        clinicalTable = dataTable.getDataTable("clinical");
+        pdLevelCol = Integer.valueOf(properties.getProperty("PDLevelCol"));
+        
+        // Get data information (indexes of patients, exercises, feet)
+        limitMarkers = dataTable.getLimitMarkers();
+        
+        // Get the classifier and the evaluator of metrics
+        kindClassifier = properties.getProperty("Classifier");
+        switch (kindClassifier) {
+            case "quantizer":
+                classifier = new Quantizer(kindClassifier, Integer.valueOf(properties.getProperty("MaxPDLevel")));
+                classifierEval = new ClassifierEvaluator(Integer.valueOf(properties.getProperty("MaxPDLevel"))+1);
+                break;
+            case "dichotomizer":
+                classifier = new Quantizer(kindClassifier, 1);
+                classifierEval = new ClassifierEvaluator(2);
+                break;
         }
         
-        problem = null;
+        // Select the current fold
+        if (training) {
+            currentData = getTrainingFolds(dataTable.getPatientsIdXs(training), folding);
+        } else {
+            currentData = dataTable.getPatientsIdXs(training);
+        }
         
-        try {
-            problem = new ParkinsonClassifier(properties, threadId);
-        } catch (IOException ex) {
-            logger.severe(ex.getLocalizedMessage());
-        }
-        // Second create the algorithm
-        IntegerFlipMutation<Variable<Integer>> mutationOperator = new IntegerFlipMutation<>(problem, 1.0 / problem.reader.getRules().size());
-        SinglePointCrossover<Variable<Integer>> crossoverOperator = new SinglePointCrossover<>(problem, SinglePointCrossover.DEFAULT_FIXED_CROSSOVER_POINT, SinglePointCrossover.DEFAULT_PROBABILITY, SinglePointCrossover.AVOID_REPETITION_IN_FRONT);
-        SimpleDominance<Variable<Integer>> comparator = new SimpleDominance<>();
-        BinaryTournament<Variable<Integer>> selectionOp = new BinaryTournament<>(comparator);
-        SimpleGeneticAlgorithm<Variable<Integer>> algorithm = new SimpleGeneticAlgorithm<>(problem, Integer.valueOf(properties.getProperty("NumIndividuals")), Integer.valueOf(properties.getProperty("NumGenerations")), true, mutationOperator, crossoverOperator, selectionOp);
-        switch (properties.getProperty("Parallelization")) {
-            case "yes":
-                MasterWorkerThreads<Variable<Integer>> masterWorker = new MasterWorkerThreads<Variable<Integer>>(algorithm, problem, Integer.valueOf(properties.getProperty("NumCores")));
-                masterWorker.execute();
-            default:
-                algorithm.initialize();
-                algorithm.execute();
-        }
+        // Reset variables:
+        bestClassRate = Double.NEGATIVE_INFINITY;
+        bestMacroAvgTPR = Double.NEGATIVE_INFINITY;
+        bestMacroAvgTNR = Double.NEGATIVE_INFINITY;
+        bestMacroAvgF = Double.NEGATIVE_INFINITY;
+        bestMacroAvgPPV = Double.NEGATIVE_INFINITY;
+        String bestExpression = null;                   
     }
     
     public static void main(String[] args) {
@@ -647,7 +452,127 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             propertiesFilePath = args[0];
             threadId = Integer.valueOf(args[1]);
         }
-        Properties properties = loadProperties(propertiesFilePath);
-        runGE(properties, threadId);
+        
+        
+        try {
+            Properties properties = loadProperties(propertiesFilePath);
+            //ParkinsonClassifier problem = new ParkinsonClassifier(properties, threadId);
+//josue:    //ParkinsonClassifier --> THIS IS MOVED TO THE for() LOOP, BECAUSE ONE NEW PROBLEM IS NEEDED EACH TIME
+            
+            /////////////////////////////////////////
+            // Variables to store the results:
+            double[] classRateAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+            double[] sensitivityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+            double[] specificityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+            double[] precisionAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+            String[] expressionAllFolds = new String[Integer.valueOf(properties.getProperty("N"))];
+            double[] fValueAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+            
+            
+            // If N-fold cross-validation: first run it and calculate metrics.
+            if ("yes".equals(properties.getProperty("NFoldCrossVal"))) {
+                // For each fold
+                for (int i=0; i<Integer.valueOf(properties.getProperty("N")); i++){
+                    logger.info("Starting Folding Num: " + i);
+                    
+                    // New problem and new algorihm for each fold:
+                    ParkinsonClassifier problem = new ParkinsonClassifier(properties, threadId);
+                    // Select the current fold
+                    problem.loadData(true, i);
+                    
+                    IntegerFlipMutation<Variable<Integer>> mutationOperator = new IntegerFlipMutation<>(problem, 1.0 / problem.reader.getRules().size());
+                    SinglePointCrossover<Variable<Integer>> crossoverOperator = new SinglePointCrossover<>(problem, SinglePointCrossover.DEFAULT_FIXED_CROSSOVER_POINT, SinglePointCrossover.DEFAULT_PROBABILITY, SinglePointCrossover.AVOID_REPETITION_IN_FRONT);
+                    SimpleDominance<Variable<Integer>> comparator = new SimpleDominance<>();
+                    BinaryTournament<Variable<Integer>> selectionOp = new BinaryTournament<>(comparator);
+                    SimpleGeneticAlgorithm<Variable<Integer>> algorithm = new SimpleGeneticAlgorithm<>(problem, Integer.valueOf(properties.getProperty("NumIndividuals")), Integer.valueOf(properties.getProperty("NumGenerations")), true, mutationOperator, crossoverOperator, selectionOp);
+                    
+                    // Call optimization problem:
+                    switch (properties.getProperty("Parallelization")) {
+                        case "yes":
+                            MasterWorkerThreads<Variable<Integer>> masterWorker = new MasterWorkerThreads<Variable<Integer>>(algorithm, problem, Integer.valueOf(properties.getProperty("NumCores")));
+                            masterWorker.execute();
+                            break;
+                        default:
+                            algorithm.initialize();
+                            algorithm.execute();
+                    }
+                    
+                    
+                    // Take the first solution (best of all threads):
+                    Solution<Variable<Integer>> bestSolution = algorithm.getSolutions().get(0);
+                    
+                    // Reset everything:
+                    problem.classifierEval.resetConfusionMatrix();                    
+                    problem.bestClassRate = Double.NEGATIVE_INFINITY;
+                    problem.bestMacroAvgTPR = Double.NEGATIVE_INFINITY;
+                    problem.bestMacroAvgTNR = Double.NEGATIVE_INFINITY;
+                    problem.bestMacroAvgF = Double.NEGATIVE_INFINITY;
+                    problem.bestMacroAvgPPV = Double.NEGATIVE_INFINITY;
+                    String bestExpression = null;
+                    
+                    // Validate the best function with the holded fold
+                    // This is the result of the training of this folder
+                    problem.currentData = problem.getValidationFold(problem.dataTable.getPatientsIdXs(true), i);;
+                    
+                    // Evaluate the hoolded folding with the best solution found (just 1 thread):
+                    problem.evaluate(bestSolution);
+                    
+                    // Store the result of the training with this fold:
+                    fValueAllFolds[i] = problem.classifierEval.getMacroFValue();
+                    classRateAllFolds[i] = problem.classifierEval.getClassificationRate();
+                    sensitivityAllFolds[i] = problem.classifierEval.getMacroAverageSensitivity();
+                    specificityAllFolds[i] = problem.classifierEval.getMacroAverageSpecificity();
+                    precisionAllFolds[i] = problem.classifierEval.getMacroAveragePrecision();
+                    //expressionAllFolds[i] = problem.generatePhenotype(bestSolution).toString();
+                    logger.info("validation," + i + "," + (100*fValueAllFolds[i]) + "," + (100*classRateAllFolds[i]) +  "," + (100*precisionAllFolds[i]) + "," + 100*(sensitivityAllFolds[i]));
+                    
+                    // Get metrics from training:
+                    logger.info("TRAINING," + (100*Maths.mean(fValueAllFolds)) + "," + (100*Maths.std(fValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(sensitivityAllFolds)) +  "," + (100*Maths.std(sensitivityAllFolds)) + "," + (100*Maths.mean(specificityAllFolds)) + "," + (100*Maths.std(specificityAllFolds)) + "," + (100*Maths.mean(precisionAllFolds)) + "," + (100*Maths.std(precisionAllFolds)));
+                }
+                // Finally calculate the final expression, result of training (OUT OF THE IF)
+            }
+            
+            // FINAL. Use all the data:
+            // New problem and new algorihm to compute all the patients:
+            ParkinsonClassifier problem = new ParkinsonClassifier(properties, threadId);
+            problem.classifierEval.resetConfusionMatrix();
+            problem.currentData = problem.dataTable.getPatientsIdXs(false);
+            
+            // Select all the patients:
+            problem.loadData(false, -1);
+            
+            IntegerFlipMutation<Variable<Integer>> mutationOperator = new IntegerFlipMutation<>(problem, 1.0 / problem.reader.getRules().size());
+            SinglePointCrossover<Variable<Integer>> crossoverOperator = new SinglePointCrossover<>(problem, SinglePointCrossover.DEFAULT_FIXED_CROSSOVER_POINT, SinglePointCrossover.DEFAULT_PROBABILITY, SinglePointCrossover.AVOID_REPETITION_IN_FRONT);
+            SimpleDominance<Variable<Integer>> comparator = new SimpleDominance<>();
+            BinaryTournament<Variable<Integer>> selectionOp = new BinaryTournament<>(comparator);
+            SimpleGeneticAlgorithm<Variable<Integer>> algorithm = new SimpleGeneticAlgorithm<>(problem, Integer.valueOf(properties.getProperty("NumIndividuals")), Integer.valueOf(properties.getProperty("NumGenerations")), true, mutationOperator, crossoverOperator, selectionOp);
+            
+            // Call optimization problem:
+            switch (properties.getProperty("Parallelization")) {
+                case "yes":
+                    MasterWorkerThreads<Variable<Integer>> masterWorker = new MasterWorkerThreads<Variable<Integer>>(algorithm, problem, Integer.valueOf(properties.getProperty("NumCores")));
+                    masterWorker.execute();
+                    break;
+                default:
+                    algorithm.initialize();
+                    algorithm.execute();
+            }
+            
+            // Take the best solution:
+            Solution<Variable<Integer>> bestSolution = algorithm.getSolutions().get(0);
+            String bestExpression = problem.generatePhenotype(bestSolution).toString();
+            
+            switch (problem.kindClassifier) {
+                case "dichotomizer":
+                    logger.info("FINAL,PD class," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)) + "," + bestExpression);
+                    break;
+            }
+            logger.info("FINAL,All," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);
+      
+            
+         //////////////////////////////////////////
+        } catch (IOException ex) {
+            Logger.getLogger(ParkinsonClassifier.class.getName()).log(Level.SEVERE, null, ex);
+        }
     }
 }
