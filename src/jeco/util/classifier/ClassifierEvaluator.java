@@ -1,4 +1,4 @@
-package jeco.util;
+package jeco.util.classifier;
 
 /**
  * Class to manage the confusion matrix and metric parameters of a classifier.
@@ -24,7 +24,7 @@ public class ClassifierEvaluator {
     public void setConfusionMatrix(int[][] cm) {
         confusionMatrix = cm;
     }
-
+    
     public void setValue(int originalClass, int classifiedClass, int v) {
         confusionMatrix[classifiedClass][originalClass] += v;
     }
@@ -32,7 +32,7 @@ public class ClassifierEvaluator {
     public int[][] getConfusionMatrix() {
         return confusionMatrix;
     }
-
+    
     public int getN() {
         int n = 0;
         for (int i=0; i < confusionMatrix.length; i++) {
@@ -48,23 +48,96 @@ public class ClassifierEvaluator {
         double osr = 0.0;
         for (int i=0; i < confusionMatrix.length; i++) {
             osr += confusionMatrix[i][i];
-        }        
-        return osr/getN();
+        }
+        return (double)osr/getN();
     }
     
     // Marginal rates functions
     public double getSensitivity(int classC) { // Or TPR
-        return getTruePositives(classC)/(getTruePositives(classC)+getFalseNegatives(classC));
+        if (getTruePositives(classC) + getFalseNegatives(classC) == 0) {
+            return 0.0;
+        }
+        return (double)getTruePositives(classC)/(getTruePositives(classC)+getFalseNegatives(classC));
     }
     
-     public double getSpecificity(int classC) {  // Or TNR
-        return getTrueNegatives(classC)/(getTrueNegatives(classC)+getFalsePositives(classC));
+    public double getSpecificity(int classC) {  // Or TNR
+        if (getTrueNegatives(classC)+getFalsePositives(classC) == 0) {
+            return 0.0;
+        }
+        return (double)getTrueNegatives(classC)/(getTrueNegatives(classC)+getFalsePositives(classC));
+    }
+    
+    public double getPrecision(int classC) { // Or PPV
+        if (getTruePositives(classC)+getFalsePositives(classC) == 0) {
+            return 0.0;
+        }
+        return (double)getTruePositives(classC)/(getTruePositives(classC)+getFalsePositives(classC));
+    }
+    
+    public double getFValue(int classC){
+        return 2/((1/(getSensitivity(classC)))+(1/(getPrecision(classC))));
+    }
+    
+    // Micro-averaged values
+    public double getMicroAveragePrecision(){
+        int sumAllTP = 0;
+        int sumAllFP = 0;
+        
+        for (int i=0; i<confusionMatrix.length; i++) {
+            sumAllTP += getTruePositives(i);
+            sumAllFP += getFalsePositives(i);
+        }
+        return (double)sumAllTP/(sumAllTP+sumAllFP);
+    }
+    
+    public double getMicroAverageSensitivity(){
+        int sumAllTP = 0;
+        int sumAllFN = 0;
+        
+        for (int i=0; i<confusionMatrix.length; i++) {
+            sumAllTP += getTruePositives(i);
+            sumAllFN += getFalseNegatives(i);
+        }
+        return (double)sumAllTP/(sumAllTP+sumAllFN);
+    }
+    
+    public double getMicroFValue(){
+        return 2/((1/(getMicroAveragePrecision()))+(1/(getMicroAverageSensitivity())));
+    }
+    
+    // Micro-averaged values
+    public double getMacroAveragePrecision(){
+        double sumAllPrecisions = 0.0;
+        
+        for (int i=0; i<confusionMatrix.length; i++) {
+            sumAllPrecisions += getPrecision(i);
+        }
+        return sumAllPrecisions/confusionMatrix.length;
+    }
+    
+    public double getMacroAverageSensitivity(){
+        double sumAllSensitivities = 0.0;
+        
+        for (int i=0; i<confusionMatrix.length; i++) {
+            sumAllSensitivities += getSensitivity(i);
+        }
+        return sumAllSensitivities/confusionMatrix.length;
+    }
+    
+     public double getMacroAverageSpecificity(){
+        double sumAllSpecificities = 0.0;
+        
+        for (int i=0; i<confusionMatrix.length; i++) {
+            sumAllSpecificities += getSpecificity(i);
+        }
+        return sumAllSpecificities/confusionMatrix.length;
     }
      
-      public double getPrecision(int classC) { // Or PPV
-        return getTruePositives(classC)/(getTruePositives(classC)+getFalsePositives(classC));
+    public double getMacroFValue(){
+        return 2/((1/(getMacroAveragePrecision()))+(1/(getMacroAverageSensitivity())));
     }
     
+      
     // Marginal rates
     // Marginal true positives
     public int getTruePositives(int classC) {
@@ -76,7 +149,7 @@ public class ClassifierEvaluator {
         int niC = 0;
         for (int i=0; i < confusionMatrix.length; i++) {
             niC += confusionMatrix[classC][i];
-        }  
+        }
         return niC-confusionMatrix[classC][classC];
     }
     
@@ -85,7 +158,7 @@ public class ClassifierEvaluator {
         int nCi = 0;
         for (int i=0; i < confusionMatrix.length; i++) {
             nCi += confusionMatrix[i][classC];
-        }  
+        }
         return nCi-confusionMatrix[classC][classC];
     }
     
