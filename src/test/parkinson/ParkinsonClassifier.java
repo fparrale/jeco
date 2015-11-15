@@ -57,22 +57,22 @@ import jeco.util.Maths;
 
 public class ParkinsonClassifier extends AbstractProblemGE {
     
-    private static final Logger logger = Logger.getLogger(ParkinsonClassifier.class.getName() + "info");
+    private static final Logger logger = Logger.getLogger(ParkinsonClassifier.class.getName());
     
     protected int threadId;
     protected MyCompiler compiler;
     protected DataTable dataTable = null;
     protected Properties properties;
     protected AbstractPopEvaluator evaluator;
-    ParkinsonClassifier problem;
+    protected ParkinsonClassifier problem;
     protected ArrayList<double[]> clinicalTable = new ArrayList<>();
     protected ClassifierEvaluator classifierEval;
     protected Quantizer classifier;
     protected int[][] limitMarkers;
     protected String kindClassifier;
-    int computeFoldNumber;
-    int[][] currentData;
-    SimpleGeneticAlgorithm<Variable<Integer>> algorithm;
+    protected int computeFoldNumber;
+    protected int[][] currentData;
+    protected SimpleGeneticAlgorithm<Variable<Integer>> algorithm;
     protected int pdLevelCol;
     
     protected double bestClassRate = Double.NEGATIVE_INFINITY;
@@ -440,11 +440,12 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         bestMacroAvgTNR = Double.NEGATIVE_INFINITY;
         bestMacroAvgF = Double.NEGATIVE_INFINITY;
         bestMacroAvgPPV = Double.NEGATIVE_INFINITY;
-        String bestExpression = null;                   
     }
     
     public static void main(String[] args) {
-        String propertiesFilePath = "test" + File.separator + ParkinsonClassifier.class.getSimpleName() + ".properties";
+        JecoLogger.setup(Level.INFO);
+        //String propertiesFilePath = "test" + File.separator + ParkinsonClassifier.class.getSimpleName() + ".properties";
+        String propertiesFilePath = "test" + File.separator + "JoseL.properties";
         int threadId = 1;
         if (args.length == 1) {
             propertiesFilePath = args[0];
@@ -487,19 +488,20 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                     SimpleGeneticAlgorithm<Variable<Integer>> algorithm = new SimpleGeneticAlgorithm<>(problem, Integer.valueOf(properties.getProperty("NumIndividuals")), Integer.valueOf(properties.getProperty("NumGenerations")), true, mutationOperator, crossoverOperator, selectionOp);
                     
                     // Call optimization problem:
+                    Solutions<Variable<Integer>> popAfterExecution = new Solutions<>();
                     switch (properties.getProperty("Parallelization")) {
                         case "yes":
-                            MasterWorkerThreads<Variable<Integer>> masterWorker = new MasterWorkerThreads<Variable<Integer>>(algorithm, problem, Integer.valueOf(properties.getProperty("NumCores")));
-                            masterWorker.execute();
+                            MasterWorkerThreads<Variable<Integer>> masterWorker = new MasterWorkerThreads<>(algorithm, problem, Integer.valueOf(properties.getProperty("NumCores")));
+                            popAfterExecution = masterWorker.execute();
                             break;
                         default:
                             algorithm.initialize();
-                            algorithm.execute();
+                            popAfterExecution = algorithm.execute();
                     }
                     
                     
                     // Take the first solution (best of all threads):
-                    Solution<Variable<Integer>> bestSolution = algorithm.getSolutions().get(0);
+                    Solution<Variable<Integer>> bestSolution = popAfterExecution.get(0);
                     
                     // Reset everything:
                     problem.classifierEval.resetConfusionMatrix();                    
@@ -508,14 +510,15 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                     problem.bestMacroAvgTNR = Double.NEGATIVE_INFINITY;
                     problem.bestMacroAvgF = Double.NEGATIVE_INFINITY;
                     problem.bestMacroAvgPPV = Double.NEGATIVE_INFINITY;
-                    String bestExpression = null;
                     
                     // Validate the best function with the holded fold
                     // This is the result of the training of this folder
                     problem.currentData = problem.getValidationFold(problem.dataTable.getPatientsIdXs(true), i);;
                     
                     // Evaluate the hoolded folding with the best solution found (just 1 thread):
-                    problem.evaluate(bestSolution);
+                    Solutions<Variable<Integer>> tempSolutions = new Solutions<>();
+                    tempSolutions.add(bestSolution);
+                    problem.evaluate(tempSolutions);
                     
                     // Store the result of the training with this fold:
                     fValueAllFolds[i] = problem.classifierEval.getMacroFValue();
@@ -523,7 +526,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                     sensitivityAllFolds[i] = problem.classifierEval.getMacroAverageSensitivity();
                     specificityAllFolds[i] = problem.classifierEval.getMacroAverageSpecificity();
                     precisionAllFolds[i] = problem.classifierEval.getMacroAveragePrecision();
-                    //expressionAllFolds[i] = problem.generatePhenotype(bestSolution).toString();
+                    expressionAllFolds[i] = problem.generatePhenotype(bestSolution).toString();
                     logger.info("validation," + i + "," + (100*fValueAllFolds[i]) + "," + (100*classRateAllFolds[i]) +  "," + (100*precisionAllFolds[i]) + "," + 100*(sensitivityAllFolds[i]));
                     
                     // Get metrics from training:
@@ -550,7 +553,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             // Call optimization problem:
             switch (properties.getProperty("Parallelization")) {
                 case "yes":
-                    MasterWorkerThreads<Variable<Integer>> masterWorker = new MasterWorkerThreads<Variable<Integer>>(algorithm, problem, Integer.valueOf(properties.getProperty("NumCores")));
+                    MasterWorkerThreads<Variable<Integer>> masterWorker = new MasterWorkerThreads<>(algorithm, problem, Integer.valueOf(properties.getProperty("NumCores")));
                     masterWorker.execute();
                     break;
                 default:
