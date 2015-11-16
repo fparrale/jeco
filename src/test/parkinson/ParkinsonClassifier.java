@@ -301,13 +301,13 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                 bestMacroAvgF = macroFvalue;
                 logger.info("BEST FOUND, Thread-Id: " + threadId + ", Macro F-value=" + (100*macroFvalue) + "; Expresion=" + bestExpression);
             }
-        }        
+        }
 // josue:
 //logger.info("training," + CURRENT_FOLD + "," + bestNumGeneration + "," + bestSolIdx + "," + (100*bestMacroAvgF) + "," + (100*bestClassRate) +  "," + (100*bestMacroAvgPPV) + "," + (100*bestMacroAvgTPR) + "," + (100*bestMacroAvgTNR) + "," + bestExpression);
     }
     
     
-//josue: para hacer la evaluacion del fold, llamo a evaluate(bestSolution) y viene aqui, y "penca":   
+//josue: para hacer la evaluacion del fold, llamo a evaluate(bestSolution) y viene aqui, y "penca":
     @Override
     public void evaluate(Solution<Variable<Integer>> solution) {
         logger.severe("The solutions should be already evaluated. You should not see this message.");
@@ -405,7 +405,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     }
     
     
-    public void loadData(boolean training, int folding) throws IOException{
+    public void loadData() throws IOException{
         dataTable = new DataTable(this, Integer.valueOf(properties.getProperty("IdxBegin", "-1")), Integer.valueOf(properties.getProperty("IdxEnd", "-1")));
         // Get the clinical information
         clinicalTable = dataTable.getDataTable("clinical");
@@ -426,27 +426,15 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                 classifierEval = new ClassifierEvaluator(2);
                 break;
         }
-        
-        // Select the current fold
-        if (training) {
-            currentData = getTrainingFolds(dataTable.getPatientsIdXs(training), folding);
-        } else {
-            currentData = dataTable.getPatientsIdXs(training);
-        }
-        
-        // Reset variables:
-        bestClassRate = Double.NEGATIVE_INFINITY;
-        bestMacroAvgTPR = Double.NEGATIVE_INFINITY;
-        bestMacroAvgTNR = Double.NEGATIVE_INFINITY;
-        bestMacroAvgF = Double.NEGATIVE_INFINITY;
-        bestMacroAvgPPV = Double.NEGATIVE_INFINITY;
     }
     
     public static void main(String[] args) {
         JecoLogger.setup(Level.INFO);
-        //String propertiesFilePath = "test" + File.separator + ParkinsonClassifier.class.getSimpleName() + ".properties";
-        String propertiesFilePath = "test" + File.separator + "JoseL.properties";
+        String propertiesFilePath = "test" + File.separator + ParkinsonClassifier.class.getSimpleName() + ".properties";
+        //String propertiesFilePath = "test" + File.separator + "JoseL.properties";
         int threadId = 1;
+        boolean shenv = false;
+        
         if (args.length == 1) {
             propertiesFilePath = args[0];
         } else if (args.length >= 2) {
@@ -457,10 +445,17 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         
         try {
             Properties properties = loadProperties(propertiesFilePath);
-            //ParkinsonClassifier problem = new ParkinsonClassifier(properties, threadId);
-//josue:    //ParkinsonClassifier --> THIS IS MOVED TO THE for() LOOP, BECAUSE ONE NEW PROBLEM IS NEEDED EACH TIME
-            
             /////////////////////////////////////////
+            // Global data:
+            DataTable gDataTable = null;
+            ArrayList<double[]> gClinicalTable = null;
+            int gPdLevelCol = 0;
+            int[][] gLimitMarkers = null;
+            String gKindClassifier = null;
+            Quantizer gClassifier = null;
+            ClassifierEvaluator gClassifierEval = null;
+            
+            
             // Variables to store the results:
             double[] classRateAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
             double[] sensitivityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
@@ -469,7 +464,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             String[] expressionAllFolds = new String[Integer.valueOf(properties.getProperty("N"))];
             double[] fValueAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
             
-            
+            ParkinsonClassifier problem;
             // If N-fold cross-validation: first run it and calculate metrics.
             if ("yes".equals(properties.getProperty("NFoldCrossVal"))) {
                 // For each fold
@@ -477,9 +472,29 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                     logger.info("Starting Folding Num: " + i);
                     
                     // New problem and new algorihm for each fold:
-                    ParkinsonClassifier problem = new ParkinsonClassifier(properties, threadId);
+                    problem = new ParkinsonClassifier(properties, threadId);
                     // Select the current fold
-                    problem.loadData(true, i);
+                    if (!shenv) {
+                        problem.loadData();
+                        gDataTable = problem.dataTable;
+                        gClinicalTable = problem.clinicalTable;
+                        gPdLevelCol = problem.pdLevelCol;
+                        gLimitMarkers = problem.limitMarkers;
+                        gKindClassifier = problem.kindClassifier;
+                        gClassifier = problem.classifier;
+                        gClassifierEval = problem.classifierEval;
+                        shenv = true;
+                    } else {
+                        problem.dataTable = gDataTable;
+                        problem.clinicalTable = gClinicalTable;
+                        problem.pdLevelCol = gPdLevelCol;
+                        problem.limitMarkers = gLimitMarkers;
+                        problem.kindClassifier = gKindClassifier;
+                        problem.classifier = gClassifier;
+                        problem.classifierEval = gClassifierEval;
+                    }
+                    
+                    problem.currentData = problem.getTrainingFolds(problem.dataTable.getPatientsIdXs(true), i);
                     
                     IntegerFlipMutation<Variable<Integer>> mutationOperator = new IntegerFlipMutation<>(problem, 1.0 / problem.reader.getRules().size());
                     SinglePointCrossover<Variable<Integer>> crossoverOperator = new SinglePointCrossover<>(problem, SinglePointCrossover.DEFAULT_FIXED_CROSSOVER_POINT, SinglePointCrossover.DEFAULT_PROBABILITY, SinglePointCrossover.AVOID_REPETITION_IN_FRONT);
@@ -500,11 +515,11 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                     }
                     
                     
-                    // Take the first solution (best of all threads):
+                    // Take the best of all threads:
                     Solution<Variable<Integer>> bestSolution = popAfterExecution.get(0);
                     
                     // Reset everything:
-                    problem.classifierEval.resetConfusionMatrix();                    
+                    problem.classifierEval.resetConfusionMatrix();
                     problem.bestClassRate = Double.NEGATIVE_INFINITY;
                     problem.bestMacroAvgTPR = Double.NEGATIVE_INFINITY;
                     problem.bestMacroAvgTNR = Double.NEGATIVE_INFINITY;
@@ -515,7 +530,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                     // This is the result of the training of this folder
                     problem.currentData = problem.getValidationFold(problem.dataTable.getPatientsIdXs(true), i);;
                     
-                    // Evaluate the hoolded folding with the best solution found (just 1 thread):
+                    // Evaluate the hold folding with the best solution found (just 1 thread):
                     Solutions<Variable<Integer>> tempSolutions = new Solutions<>();
                     tempSolutions.add(bestSolution);
                     problem.evaluate(tempSolutions);
@@ -537,12 +552,30 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             
             // FINAL. Use all the data:
             // New problem and new algorihm to compute all the patients:
-            ParkinsonClassifier problem = new ParkinsonClassifier(properties, threadId);
+            problem = new ParkinsonClassifier(properties, threadId);
+            if (!shenv) {
+                problem.loadData();
+                gDataTable = problem.dataTable;
+                gClinicalTable = problem.clinicalTable;
+                gPdLevelCol = problem.pdLevelCol;
+                gLimitMarkers = problem.limitMarkers;
+                gKindClassifier = problem.kindClassifier;
+                gClassifier = problem.classifier;
+                gClassifierEval = problem.classifierEval;
+                shenv = true;
+            } else {
+                problem.dataTable = gDataTable;
+                problem.clinicalTable = gClinicalTable;
+                problem.pdLevelCol = gPdLevelCol;
+                problem.limitMarkers = gLimitMarkers;
+                problem.kindClassifier = gKindClassifier;
+                problem.classifier = gClassifier;
+                problem.classifierEval = gClassifierEval;
+            }
             problem.classifierEval.resetConfusionMatrix();
-            problem.currentData = problem.dataTable.getPatientsIdXs(false);
             
             // Select all the patients:
-            problem.loadData(false, -1);
+            problem.currentData = problem.dataTable.getPatientsIdXs(false);
             
             IntegerFlipMutation<Variable<Integer>> mutationOperator = new IntegerFlipMutation<>(problem, 1.0 / problem.reader.getRules().size());
             SinglePointCrossover<Variable<Integer>> crossoverOperator = new SinglePointCrossover<>(problem, SinglePointCrossover.DEFAULT_FIXED_CROSSOVER_POINT, SinglePointCrossover.DEFAULT_PROBABILITY, SinglePointCrossover.AVOID_REPETITION_IN_FRONT);
@@ -551,18 +584,20 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             SimpleGeneticAlgorithm<Variable<Integer>> algorithm = new SimpleGeneticAlgorithm<>(problem, Integer.valueOf(properties.getProperty("NumIndividuals")), Integer.valueOf(properties.getProperty("NumGenerations")), true, mutationOperator, crossoverOperator, selectionOp);
             
             // Call optimization problem:
+            Solutions<Variable<Integer>> popAfterExecution = new Solutions<>();
+            
             switch (properties.getProperty("Parallelization")) {
                 case "yes":
                     MasterWorkerThreads<Variable<Integer>> masterWorker = new MasterWorkerThreads<>(algorithm, problem, Integer.valueOf(properties.getProperty("NumCores")));
-                    masterWorker.execute();
+                    popAfterExecution = masterWorker.execute();
                     break;
                 default:
                     algorithm.initialize();
-                    algorithm.execute();
+                    popAfterExecution = algorithm.execute();
             }
             
             // Take the best solution:
-            Solution<Variable<Integer>> bestSolution = algorithm.getSolutions().get(0);
+            Solution<Variable<Integer>> bestSolution = popAfterExecution.get(0);
             String bestExpression = problem.generatePhenotype(bestSolution).toString();
             
             switch (problem.kindClassifier) {
@@ -571,9 +606,9 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                     break;
             }
             logger.info("FINAL,All," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);
-      
             
-         //////////////////////////////////////////
+            
+            //////////////////////////////////////////
         } catch (IOException ex) {
             Logger.getLogger(ParkinsonClassifier.class.getName()).log(Level.SEVERE, null, ex);
         }
