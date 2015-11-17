@@ -20,8 +20,8 @@ public class MasterWorkerThreads<V extends Variable<?>> extends Problem<V> {
     private static final Logger logger = Logger.getLogger(MasterWorkerThreads.class.getName());
     protected Algorithm<V> algorithm = null;
     protected Problem<V> problem = null;
-    protected LinkedBlockingQueue<Solution<V>> sharedQueue = new LinkedBlockingQueue<Solution<V>>();
-    protected ArrayList<Problem<V>> problemClones = new ArrayList<Problem<V>>();
+    protected LinkedBlockingQueue<Solution<V>> sharedQueue = new LinkedBlockingQueue<>();
+    protected ArrayList<Problem<V>> problemClones = new ArrayList<>();
     protected Integer numWorkers = null;
 
     public MasterWorkerThreads(Algorithm<V> algorithm, Problem<V> problem, Integer numWorkers) {
@@ -45,9 +45,14 @@ public class MasterWorkerThreads<V extends Variable<?>> extends Problem<V> {
     @Override
     public void evaluate(Solutions<V> solutions) {
         sharedQueue.addAll(solutions);
-        LinkedList<Worker<V>> workers = new LinkedList<Worker<V>>();
+        LinkedList<Worker<V>> workers = new LinkedList<>();
+        int solutionsPerWorker = solutions.size()/numWorkers;
+        int remainingSolutions = solutions.size()%numWorkers;
         for (int i = 0; i < numWorkers; ++i) {
-            Worker<V> worker = new Worker<V>(problemClones.get(i), sharedQueue);
+            if(i==(numWorkers-1)) {
+                solutionsPerWorker = solutionsPerWorker + remainingSolutions;
+            }
+            Worker<V> worker = new Worker<>(problemClones.get(i), sharedQueue, solutionsPerWorker);
             workers.add(worker);
             worker.start();
         }
