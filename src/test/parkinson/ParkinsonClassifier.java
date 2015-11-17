@@ -446,16 +446,6 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         try {
             Properties properties = loadProperties(propertiesFilePath);
             /////////////////////////////////////////
-            // Global data:
-            DataTable gDataTable = null;
-            ArrayList<double[]> gClinicalTable = null;
-            int gPdLevelCol = 0;
-            int[][] gLimitMarkers = null;
-            String gKindClassifier = null;
-            Quantizer gClassifier = null;
-            ClassifierEvaluator gClassifierEval = null;
-            
-            
             // Variables to store the results:
             double[] classRateAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
             double[] sensitivityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
@@ -473,27 +463,9 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                     
                     // New problem and new algorihm for each fold:
                     problem = new ParkinsonClassifier(properties, threadId);
-                    // Select the current fold
-                    if (!shenv) {
-                        problem.loadData();
-                        gDataTable = problem.dataTable;
-                        gClinicalTable = problem.clinicalTable;
-                        gPdLevelCol = problem.pdLevelCol;
-                        gLimitMarkers = problem.limitMarkers;
-                        gKindClassifier = problem.kindClassifier;
-                        gClassifier = problem.classifier;
-                        gClassifierEval = problem.classifierEval;
-                        shenv = true;
-                    } else {
-                        problem.dataTable = gDataTable;
-                        problem.clinicalTable = gClinicalTable;
-                        problem.pdLevelCol = gPdLevelCol;
-                        problem.limitMarkers = gLimitMarkers;
-                        problem.kindClassifier = gKindClassifier;
-                        problem.classifier = gClassifier;
-                        problem.classifierEval = gClassifierEval;
-                    }
+                    problem.loadData();
                     
+                    // Select the current fold
                     problem.currentData = problem.getTrainingFolds(problem.dataTable.getPatientsIdXs(true), i);
                     
                     IntegerFlipMutation<Variable<Integer>> mutationOperator = new IntegerFlipMutation<>(problem, 1.0 / problem.reader.getRules().size());
@@ -553,25 +525,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             // FINAL. Use all the data:
             // New problem and new algorihm to compute all the patients:
             problem = new ParkinsonClassifier(properties, threadId);
-            if (!shenv) {
-                problem.loadData();
-                gDataTable = problem.dataTable;
-                gClinicalTable = problem.clinicalTable;
-                gPdLevelCol = problem.pdLevelCol;
-                gLimitMarkers = problem.limitMarkers;
-                gKindClassifier = problem.kindClassifier;
-                gClassifier = problem.classifier;
-                gClassifierEval = problem.classifierEval;
-                shenv = true;
-            } else {
-                problem.dataTable = gDataTable;
-                problem.clinicalTable = gClinicalTable;
-                problem.pdLevelCol = gPdLevelCol;
-                problem.limitMarkers = gLimitMarkers;
-                problem.kindClassifier = gKindClassifier;
-                problem.classifier = gClassifier;
-                problem.classifierEval = gClassifierEval;
-            }
+            problem.loadData();
             problem.classifierEval.resetConfusionMatrix();
             
             // Select all the patients:
@@ -602,7 +556,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             
             switch (problem.kindClassifier) {
                 case "dichotomizer":
-                    logger.info("FINAL,PD class," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)) + "," + bestExpression);
+                    logger.info("FINAL,PD class," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
                     break;
             }
             logger.info("FINAL,All," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);
