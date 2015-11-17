@@ -64,15 +64,12 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     protected DataTable dataTable = null;
     protected Properties properties;
     protected AbstractPopEvaluator evaluator;
-    protected ParkinsonClassifier problem;
     protected ArrayList<double[]> clinicalTable = new ArrayList<>();
     protected ClassifierEvaluator classifierEval;
     protected Quantizer classifier;
     protected int[][] limitMarkers;
     protected String kindClassifier;
-    protected int computeFoldNumber;
     protected int[][] currentData;
-    protected SimpleGeneticAlgorithm<Variable<Integer>> algorithm;
     protected int pdLevelCol;
     
     protected double bestClassRate = Double.NEGATIVE_INFINITY;
@@ -85,12 +82,48 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     protected int bestSolIdx;
     protected int bestNumGeneration;
     
+     @Override
+    public ParkinsonClassifier clone() {
+        ParkinsonClassifier clone = null;
+        try {
+            clone = new ParkinsonClassifier(properties, threadId + 1);
+            clone.dataTable = this.dataTable;
+            clone.clinicalTable = this.clinicalTable;
+            clone.limitMarkers = this.limitMarkers;
+            clone.currentData = this.currentData;
+            clone.pdLevelCol = this.pdLevelCol;
+            
+            clone.bestClassRate = Double.NEGATIVE_INFINITY;
+            clone.bestMacroAvgTPR = Double.NEGATIVE_INFINITY;
+            clone.bestMacroAvgTNR = Double.NEGATIVE_INFINITY;
+            clone.bestMacroAvgF = Double.NEGATIVE_INFINITY;
+            clone.bestMacroAvgPPV = Double.NEGATIVE_INFINITY;
+            clone.bestExpression = null;
+            clone.bestSolution = null;
+        } catch (IOException ex) {
+            logger.severe(ex.getLocalizedMessage());
+        }
+        return clone;
+    }
     
     public ParkinsonClassifier(Properties properties, int threadId) throws IOException {
         super(properties.getProperty("BnfPathFile"), 1);
         this.properties = properties;
         this.threadId = threadId;
         compiler = new MyCompiler(properties);
+        
+        // Get the classifier and the evaluator of metrics
+        kindClassifier = properties.getProperty("Classifier");
+        switch (kindClassifier) {
+            case "quantizer":
+                classifier = new Quantizer(kindClassifier, Integer.valueOf(properties.getProperty("MaxPDLevel")));
+                classifierEval = new ClassifierEvaluator(Integer.valueOf(properties.getProperty("MaxPDLevel"))+1);
+                break;
+            case "dichotomizer":
+                classifier = new Quantizer(kindClassifier, 1);
+                classifierEval = new ClassifierEvaluator(2);
+                break;
+        }
     }
     
     
@@ -318,16 +351,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         logger.severe("The solutions should be already evaluated. You should not see this message.");
     }
     
-    @Override
-    public ParkinsonClassifier clone() {
-        ParkinsonClassifier clone = null;
-        try {
-            clone = new ParkinsonClassifier(properties, threadId + 1);
-        } catch (IOException ex) {
-            logger.severe(ex.getLocalizedMessage());
-        }
-        return clone;
-    }
+   
     
     public void computeFolds(AbstractPopEvaluator evaluator, Solution<Variable<Integer>> solution, int solIdx, int[][] data) {
         // For every patient apply the solution
@@ -412,20 +436,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         pdLevelCol = Integer.valueOf(properties.getProperty("PDLevelCol"));
         
         // Get data information (indexes of patients, exercises, feet)
-        limitMarkers = dataTable.getLimitMarkers();
-        
-        // Get the classifier and the evaluator of metrics
-        kindClassifier = properties.getProperty("Classifier");
-        switch (kindClassifier) {
-            case "quantizer":
-                classifier = new Quantizer(kindClassifier, Integer.valueOf(properties.getProperty("MaxPDLevel")));
-                classifierEval = new ClassifierEvaluator(Integer.valueOf(properties.getProperty("MaxPDLevel"))+1);
-                break;
-            case "dichotomizer":
-                classifier = new Quantizer(kindClassifier, 1);
-                classifierEval = new ClassifierEvaluator(2);
-                break;
-        }
+        limitMarkers = dataTable.getLimitMarkers();     
     }
     
     public static void main(String[] args) {
@@ -433,7 +444,6 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         String propertiesFilePath = "test" + File.separator + ParkinsonClassifier.class.getSimpleName() + ".properties";
         //String propertiesFilePath = "test" + File.separator + "JoseL.properties";
         int threadId = 1;
-        boolean shenv = false;
         
         if (args.length == 1) {
             propertiesFilePath = args[0];
