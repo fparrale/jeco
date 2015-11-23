@@ -44,7 +44,7 @@ public class SimpleGeneticAlgorithm<V extends Variable<?>> extends Algorithm<V> 
     protected Integer maxPopulationSize = null;
     protected Integer currentGeneration = null;
     /////////////////////////////////////////////////////////////////////////
-    protected SimpleDominance<V> dominance = new SimpleDominance<V>();
+    protected SimpleDominance<V> dominance = new SimpleDominance<>();
     protected Solutions<V> population;
     protected Solutions<V> leaders;
     protected MutationOperator<V> mutationOperator;
@@ -64,7 +64,7 @@ public class SimpleGeneticAlgorithm<V extends Variable<?>> extends Algorithm<V> 
     @Override
     public void initialize() {
         population = problem.newRandomSetOfSolutions(maxPopulationSize);
-        leaders = new Solutions<V>();
+        leaders = new Solutions<>();
         problem.evaluate(population);
         for (Solution<V> solution : population) {
             leaders.add(solution.clone());
@@ -167,5 +167,9 @@ public class SimpleGeneticAlgorithm<V extends Variable<?>> extends Algorithm<V> 
 
     public Solutions<V> getSolutions() {
         return population;
+    }
+    
+    public Solutions<V> getLeaders() {
+        return leaders;
     }
 }
