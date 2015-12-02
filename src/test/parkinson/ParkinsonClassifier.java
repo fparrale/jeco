@@ -59,6 +59,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     
     private static final Logger logger = Logger.getLogger(ParkinsonClassifier.class.getName());
     
+    private static int CURRENT_THREAD_ID = 1;
     protected int threadId;
     protected MyCompiler compiler;
     protected DataTable dataTable = null;
@@ -86,7 +87,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     public ParkinsonClassifier clone() {
         ParkinsonClassifier clone = null;
         try {
-            clone = new ParkinsonClassifier(properties, threadId + 1);
+            clone = new ParkinsonClassifier(properties);
             clone.dataTable = this.dataTable;
             clone.clinicalTable = this.clinicalTable;
             clone.limitMarkers = this.limitMarkers;
@@ -106,10 +107,10 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         return clone;
     }
     
-    public ParkinsonClassifier(Properties properties, int threadId) throws IOException {
+    public ParkinsonClassifier(Properties properties) throws IOException {
         super(properties.getProperty("BnfPathFile"), 1);
         this.properties = properties;
-        this.threadId = threadId;
+        this.threadId = CURRENT_THREAD_ID++;
         compiler = new MyCompiler(properties);
         
         // Get the classifier and the evaluator of metrics
@@ -208,6 +209,10 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\treturn Maths.abs(getData(array, ex, foot));\n");
         currentJavaFile.append("\t}\n");
         
+        currentJavaFile.append("\tpublic double[] MyAbsFFT(double[] array, int[] ex, int[] foot) {\n");
+        currentJavaFile.append("\treturn Maths.absFFT(getData(array, ex, foot));\n");
+        currentJavaFile.append("\t}\n");
+        
         /**
          * Utils
          * */
@@ -261,7 +266,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\t\t\t\t\tresult = Double.POSITIVE_INFINITY;\n");
         currentJavaFile.append("\t\t\t}\n"); // End switch
         
-        logger.info("incorrect_sols," + numOfIncorrectSolutions);
+        logger.finest("incorrect_sols," + numOfIncorrectSolutions);
         
         currentJavaFile.append("\t\t}\n"); // End try
         currentJavaFile.append("\t\tcatch (Exception ee) {\n");
@@ -293,8 +298,6 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             logger.severe(ex.getLocalizedMessage());
         }
         
-        //runClassifier(solutions);
-        
         // For each folding apply the solutions.
         // Evaluate all the solutions with the compiled file.
         evaluator = null;
@@ -309,7 +312,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         for (int s = 0; s < solutions.size(); ++s) {
             Solution<Variable<Integer>> solution = solutions.get(s);
             classifierEval.resetConfusionMatrix();
-            
+            logger.info("Solución: " + generatePhenotype(solution).toString());
             computeFolds(evaluator, solution, s, currentData);
             
             double cr = classifierEval.getClassificationRate();
@@ -320,8 +323,6 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             
             // Return the value to the algorithm:
             solution.getObjectives().set(0, 1-macroFvalue); //(1-macroFvalue) to maximize the F-value
-// josue (problema de QUERER LEER CURRENT GENERATION):
-//logger.info("training," + CURRENT_FOLD + "," + algorithm.getCurrentGeneration() + "," + s + "," + macroFvalue + "," + cr +  "," + macroPPV + "," + macroTPR);
             
             if (macroFvalue > bestMacroAvgF) {
                 bestSolution = solution;
@@ -335,12 +336,9 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                 logger.info("BEST FOUND, Thread-Id: " + threadId + ", Macro F-value=" + (100*macroFvalue) + "; Expresion=" + bestExpression);
             }
         }
-// josue:
-//logger.info("training," + CURRENT_FOLD + "," + bestNumGeneration + "," + bestSolIdx + "," + (100*bestMacroAvgF) + "," + (100*bestClassRate) +  "," + (100*bestMacroAvgPPV) + "," + (100*bestMacroAvgTPR) + "," + (100*bestMacroAvgTNR) + "," + bestExpression);
     }
     
     
-//josue: para hacer la evaluacion del fold, llamo a evaluate(bestSolution) y viene aqui, y "penca":
     @Override
     public void evaluate(Solution<Variable<Integer>> solution) {
         logger.severe("The solutions should be already evaluated. You should not see this message.");
@@ -369,8 +367,8 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                         toP = limitMarkers[p][ex];
                     }
                 }
-                //System.out.println("From: " + fromP + ", to: " + toP);
-                evaluator.setDataTable((ArrayList<double[]>) dataTable.getDataTable("training", fromP, toP));
+                System.out.println("Patient: " + p + ", From: " + fromP + ", to: " + toP);
+                evaluator.setDataTable((ArrayList<double[]>) dataTable.getDataTable("rawData", fromP, toP));
                 evaluator.setDataLimits(limitMarkers[p]);
                 
                 // Compute and classify GE:
@@ -429,10 +427,10 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     }
     
     
-    public void loadData() throws IOException{
-        dataTable = new DataTable(this, Integer.valueOf(properties.getProperty("IdxBegin", "-1")), Integer.valueOf(properties.getProperty("IdxEnd", "-1")));
+    public void loadData(String type) throws IOException{
+        dataTable = new DataTable(this, type, Integer.valueOf(properties.getProperty("IdxBegin", "-1")), Integer.valueOf(properties.getProperty("IdxEnd", "-1")));
         // Get the clinical information
-        clinicalTable = dataTable.getDataTable("clinical");
+        clinicalTable = dataTable.getDataTable("clinicalData");
         pdLevelCol = Integer.valueOf(properties.getProperty("PDLevelCol"));
         
         // Get data information (indexes of patients, exercises, feet)
@@ -440,28 +438,31 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     }
     
     public static void main(String[] args) {
-        JecoLogger.setup(Level.INFO);
         String propertiesFilePath = "test" + File.separator + ParkinsonClassifier.class.getSimpleName() + ".properties";
-        //String propertiesFilePath = "test" + File.separator + "JoseL.properties";
-        int threadId = 1;
         
         if (args.length == 1) {
             propertiesFilePath = args[0];
         } else if (args.length >= 2) {
             propertiesFilePath = args[0];
-            threadId = Integer.valueOf(args[1]);
         }
         
         
         try {
+            // TRAINING
             Properties properties = loadProperties(propertiesFilePath);
+            JecoLogger.setup(properties.getProperty("LoggerBasePath") + ".log", Level.parse(properties.getProperty("LoggerLevel")));
+
             /////////////////////////////////////////
             // Variables to store the results:
             double[] classRateAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+            double[] macroSensitivityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+            double[] macroSpecificityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+            double[] macroPrecisionAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+            String[] expressionAllFolds = new String[Integer.valueOf(properties.getProperty("N"))];
+            double[] macroFValueAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
             double[] sensitivityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
             double[] specificityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
             double[] precisionAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
-            String[] expressionAllFolds = new String[Integer.valueOf(properties.getProperty("N"))];
             double[] fValueAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
             
             ParkinsonClassifier problem;
@@ -472,8 +473,8 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                     logger.info("Starting Folding Num: " + i);
                     
                     // New problem and new algorihm for each fold:
-                    problem = new ParkinsonClassifier(properties, threadId);
-                    problem.loadData();
+                    problem = new ParkinsonClassifier(properties);
+                    problem.loadData("training");
                     
                     // Select the current fold
                     problem.currentData = problem.getTrainingFolds(problem.dataTable.getPatientsIdXs(true), i);
@@ -512,30 +513,35 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                     // This is the result of the training of this folder
                     problem.currentData = problem.getValidationFold(problem.dataTable.getPatientsIdXs(true), i);;
                     
-                    // Evaluate the hold folding with the best solution found (just 1 thread):
+                    // Evaluate the hold folding with the best solution found (each thread):
                     Solutions<Variable<Integer>> tempSolutions = new Solutions<>();
                     tempSolutions.add(bestSolution);
                     problem.evaluate(tempSolutions);
                     
                     // Store the result of the training with this fold:
-                    fValueAllFolds[i] = problem.classifierEval.getMacroFValue();
+                    macroFValueAllFolds[i] = problem.classifierEval.getMacroFValue();
                     classRateAllFolds[i] = problem.classifierEval.getClassificationRate();
-                    sensitivityAllFolds[i] = problem.classifierEval.getMacroAverageSensitivity();
-                    specificityAllFolds[i] = problem.classifierEval.getMacroAverageSpecificity();
-                    precisionAllFolds[i] = problem.classifierEval.getMacroAveragePrecision();
+                    macroSensitivityAllFolds[i] = problem.classifierEval.getMacroAverageSensitivity();
+                    macroSpecificityAllFolds[i] = problem.classifierEval.getMacroAverageSpecificity();
+                    macroPrecisionAllFolds[i] = problem.classifierEval.getMacroAveragePrecision();
                     expressionAllFolds[i] = problem.generatePhenotype(bestSolution).toString();
-                    logger.info("validation," + i + "," + (100*fValueAllFolds[i]) + "," + (100*classRateAllFolds[i]) +  "," + (100*precisionAllFolds[i]) + "," + 100*(sensitivityAllFolds[i]));
-                    
+                    fValueAllFolds[i] = problem.classifierEval.getFValue(1);
+                    sensitivityAllFolds[i] = problem.classifierEval.getSensitivity(1);
+                    specificityAllFolds[i] = problem.classifierEval.getSpecificity(1);
+                    precisionAllFolds[i] = problem.classifierEval.getPrecision(1);
+
+                    logger.info("validationOfFold," + i + "," + (100*macroFValueAllFolds[i]) + "," + (100*classRateAllFolds[i]) +  "," + (100*macroPrecisionAllFolds[i]) + "," + 100*(macroSensitivityAllFolds[i]));
                     // Get metrics from training:
-                    logger.info("TRAINING," + (100*Maths.mean(fValueAllFolds)) + "," + (100*Maths.std(fValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(sensitivityAllFolds)) +  "," + (100*Maths.std(sensitivityAllFolds)) + "," + (100*Maths.mean(specificityAllFolds)) + "," + (100*Maths.std(specificityAllFolds)) + "," + (100*Maths.mean(precisionAllFolds)) + "," + (100*Maths.std(precisionAllFolds)));
+                    logger.info("TRAINING,averageAllClasses," + (100*Maths.mean(macroFValueAllFolds)) + "," + (100*Maths.std(macroFValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(macroSensitivityAllFolds)) +  "," + (100*Maths.std(macroSensitivityAllFolds)) + "," + (100*Maths.mean(macroSpecificityAllFolds)) + "," + (100*Maths.std(macroSpecificityAllFolds)) + "," + (100*Maths.mean(macroPrecisionAllFolds)) + "," + (100*Maths.std(macroPrecisionAllFolds)));
+                    logger.info("TRAINING,averageClass1," + (100*Maths.mean(fValueAllFolds)) + "," + (100*Maths.std(fValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(sensitivityAllFolds)) +  "," + (100*Maths.std(sensitivityAllFolds)) + "," + (100*Maths.mean(specificityAllFolds)) + "," + (100*Maths.std(specificityAllFolds)) + "," + (100*Maths.mean(precisionAllFolds)) + "," + (100*Maths.std(precisionAllFolds)));
                 }
                 // Finally calculate the final expression, result of training (OUT OF THE IF)
             }
             
-            // FINAL. Use all the data:
+            // FINAL TRAINING. Use all the data:
             // New problem and new algorihm to compute all the patients:
-            problem = new ParkinsonClassifier(properties, threadId);
-            problem.loadData();
+            problem = new ParkinsonClassifier(properties);
+            problem.loadData("training");
             problem.classifierEval.resetConfusionMatrix();
             
             // Select all the patients:
@@ -564,15 +570,41 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             Solution<Variable<Integer>> bestSolution = popAfterExecution.get(0);
             String bestExpression = problem.generatePhenotype(bestSolution).toString();
             
+            // Evaluate the best solution found (all threads):
+            Solutions<Variable<Integer>> tempSolutions = new Solutions<>();
+            tempSolutions.add(bestSolution);
+            problem.evaluate(tempSolutions);
+            
+            logger.info("Final Training...");
             switch (problem.kindClassifier) {
                 case "dichotomizer":
-                    logger.info("FINAL,PD class," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
+                    logger.info("FINAL_TRAINING,PD class," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
                     break;
             }
-            logger.info("FINAL,All," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);
+            logger.info("FINAL_TRAINING,All classes," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);
+            logger.info("...done");
             
+            ////////////////////////////////////////////////////////////////////
+            // TEST
+            // Take the solution found with all the patients. Evaluate over the test data-set:
+            problem = new ParkinsonClassifier(properties);
+            problem.loadData("test");
+            problem.classifierEval.resetConfusionMatrix();
             
-            //////////////////////////////////////////
+            // Select all the patients:
+            problem.currentData = problem.dataTable.getPatientsIdXs(false);
+            
+            // Evaluate the best solution found (all threads):
+            problem.evaluate(tempSolutions);
+            
+
+            switch (problem.kindClassifier) {
+                case "dichotomizer":
+                    logger.info("FINAL_TEST,PD class," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
+                    break;
+            }
+            logger.info("FINAL_TEST,All classes," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);
+
         } catch (IOException ex) {
             Logger.getLogger(ParkinsonClassifier.class.getName()).log(Level.SEVERE, null, ex);
         }

@@ -27,9 +27,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Random;
-import java.util.logging.Level;
 import java.util.logging.Logger;
-import jeco.util.logger.JecoLogger;
 
 /**
  * Class to manage a data table. The data table is passed
@@ -43,8 +41,7 @@ public class DataTable {
     private static final Logger logger = Logger.getLogger(DataTable.class.getName());
     
     protected ParkinsonClassifier problem;
-    protected ArrayList<double[]> trainingTable = new ArrayList<>();
-    protected ArrayList<double[]> subTrainingTable = new ArrayList<>();
+    protected ArrayList<double[]> table = new ArrayList<>();
     protected int idxBegin = -1;
     protected int idxEnd = -1;
     protected int numInputColumns = 0;
@@ -65,52 +62,51 @@ public class DataTable {
     protected String rawData;
     protected String clinicData;
     
-    public DataTable(ParkinsonClassifier problem, int idxBegin, int idxEnd) throws IOException {
+    public DataTable(ParkinsonClassifier problem, String type, int idxBegin, int idxEnd) throws IOException {
         this.problem = problem;
         logger.info("Reading data file ...");
-        setPaths();
+        setPaths(type);
         readData(clinicData, clinicalTable, false);
 
         this.exercises = problem.properties.getProperty("Exercises");
         this.exercisesTrunc = exercises.split(",");
         this.limitMarkers = new int[clinicalTable.size()][2*2*exercisesTrunc.length]; // For two feet
      
-        fillTrainingDataTable(trainingTable);
+        fillDataTable(table);
         this.idxBegin = (idxBegin == -1) ? 0 : idxBegin;
-        this.idxEnd = (idxEnd == -1) ? trainingTable.size() : idxEnd;
+        this.idxEnd = (idxEnd == -1) ? table.size() : idxEnd;
         logger.info("Evaluation interval: [" + this.idxBegin + "," + this.idxEnd + ")");
         logger.info("... done.");
     }
     
-    public DataTable(ParkinsonClassifier problem) throws IOException {
-        this(problem, -1, -1);
+    public DataTable(ParkinsonClassifier problem, String type) throws IOException {
+        this(problem, type, -1, -1);
     }
     
-    public final void fillTrainingDataTable(ArrayList<double[]> dataTable) throws IOException {
+    public final void fillDataTable(ArrayList<double[]> dataTable) throws IOException {
         numInputColumns = 0;
         numTotalColumns = 0;
         
         for (int p = 0; p < clinicalTable.size(); p++) {
             String patientID = String.valueOf((int)clinicalTable.get(p)[Integer.valueOf(problem.properties.getProperty("IDCol"))]);               // Get the code GAxxxxxx
             patientPDLevel = clinicalTable.get(p)[Integer.valueOf(problem.properties.getProperty("PDLevelCol"))];              // Get the level scale H&Y
-            logger.info("PatientID: GA" + patientID + ", PDlevel: " + patientPDLevel);
+            logger.finer("PatientID: GA" + patientID + ", PDlevel: " + patientPDLevel);
             
             for (int ex = 0; ex < exercisesTrunc.length; ex++) { // For each exercise
                 
                 for (int f = 0; f<=1; f++){	// For each foot
-                    lengthIni = trainingTable.size();
+                    lengthIni = table.size();
                     foot = (f == 0) ? "RightFoot_" : "LeftFoot_";
                     
                     String absoluteDataPath = rawData + "/GA" + patientID + "/" + foot + exercisesTrunc[ex] + ".csv";
-                    readData(absoluteDataPath, trainingTable, true);
+                    readData(absoluteDataPath, table, true);
                     
                     // Store indexes: from-to for each FOOT
-                    if (lengthIni < trainingTable.size()-1){
+                    if (lengthIni < table.size()-1){
                         limitMarkers[p][4*ex+2*f] = lengthIni;
-                        limitMarkers[p][4*ex+2*f+1] = trainingTable.size()-1;
+                        limitMarkers[p][4*ex+2*f+1] = table.size()-1;
                     }
                     else {
-                        System.out.println("No data for Patient: GA" + patientID);
                         limitMarkers[p][4*ex+2*f] = -1;
                         limitMarkers[p][4*ex+2*f+1] = -1;
                     }
@@ -152,30 +148,29 @@ public class DataTable {
             }
         }
         else {
-            logger.info("File: " + dataPath + " DOES NOT EXIST");
+            logger.finer("File: " + dataPath + " DOES NOT EXIST");
         }
     }
         
     public ArrayList<double[]> getDataTable(String  type) {
         switch (type) {
-            case "training":
-                return trainingTable;
-            case "clinical":
+            case "rawData":
+                return table;
+            case "clinicalData":
                 return clinicalTable;
             default:
-                return trainingTable;
+                return table;
         }
     }
     
-    public ArrayList<double[]> getDataTable(String  type, int idx1, int idx2) {
+    public ArrayList<double[]> getDataTable(String type, int idx1, int idx2) {
         switch (type) {
-            case "training":
-                subTrainingTable = new ArrayList(trainingTable.subList(idx1, idx2));
-                return subTrainingTable;
-            case "clinical":
+            case "rawData":
+                return new ArrayList(table.subList(idx1, idx2));
+            case "clinicalData":
                 return new ArrayList(clinicalTable.subList(idx1, idx2));
             default:                
-                return trainingTable;
+                return new ArrayList(table.subList(idx1, idx2));
         }
     }
 
@@ -220,9 +215,16 @@ public class DataTable {
         return randomTable;
     }
     
-    public final void setPaths() {
+    public final void setPaths(String type) {
         String dataPath = problem.properties.getProperty("DataPathBase");
         rawData = (dataPath + problem.properties.getProperty("RawDataPath"));
-        clinicData = (dataPath + problem.properties.getProperty("ClinicalPath"));
+        switch (type){
+            case "training":
+                clinicData = (dataPath + problem.properties.getProperty("TrainingClinicalPath"));
+                break;
+            case "test":
+                clinicData = (dataPath + problem.properties.getProperty("TestClinicalPath"));
+                break;
+        }
     }
 }
