@@ -2,6 +2,7 @@
            | <PreOp>(<Expr>)
            | <MyFcn>(<MySensor>,<Exercise>,<Foot>)
            | <MyFcn>(<MyTempFcn>,noEx,<Foot>)
+           | <MyFcn>(<MyFreqFcn>,noEx,<Foot>)
 
 
            
@@ -9,11 +10,18 @@
 <PreOp> ::= Math.log|Math.abs
 
 <MyFcn> ::= MyAvg|MySum|MyMax|MyMin|MyStd|MyTotalVar|MyPod|MyGeoAvg
-<MyTempFcn> ::= <MyPow>|<MyAbs>|<MyDiff>
 
+<MyTempFcn> ::= <MyAbs>|<MyDiff>|<MyPow>|<MyConv>
+<MyFreqFcn> ::= <MyAbsFFT>|<MyConvFFT>
+
+<MyConv> ::= MyConv(<MySensor>,<MySensor>,<Exercise>,<Exercise>,<Foot>,<Foot>)|MyConv(<MyTempFcn>,<MyTempFcn>,noEx,noEx,<Foot>,<Foot>)|MyConv(<MySensor>,<MyTempFcn>,<Exercise>,noEx,<Foot>,<Foot>)
 <MyPow> ::= MyPow(<MySensor>,<Exercise>,<Foot>,<Sign><Exponent>)|MyPow(<MyTempFcn>,noEx,<Foot>,<Sign><Exponent>)
 <MyDiff> ::= MyDiff(<MySensor>,<Exercise>,<Foot>)|MyDiff(<MyTempFcn>,noEx,<Foot>)
 <MyAbs> ::= MyAbs(<MySensor>,<Exercise>,<Foot>)|MyAbs(<MyTempFcn>,noEx,<Foot>)
+
+<MyAbsFFT> ::= MyAbsFFT(<MySensor>,<Exercise>,<Foot>)|MyAbsFFT(<MyTempFcn>,noEx,<Foot>)
+<MyConvFFT> ::= MyConvFFT(<MySensor>,<MySensor>,<Exercise>,<Exercise>,<Foot>,<Foot>)|MyConvFFT(<MyTempFcn>,<MyTempFcn>,noEx,noEx,<Foot>,<Foot>)|MyConvFFT(<MySensor>,<MyTempFcn>,<Exercise>,noEx,<Foot>,<Foot>)
+
 
 
 <MySensor> ::= var0|var1|var2|var3|var4|var5
