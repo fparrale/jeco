@@ -72,6 +72,8 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     protected String kindClassifier;
     protected int[][] currentData;
     protected int pdLevelCol;
+    protected int IDCol;
+
     
     protected double bestClassRate = Double.NEGATIVE_INFINITY;
     protected double bestMacroAvgTPR = Double.NEGATIVE_INFINITY;
@@ -93,6 +95,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             clone.limitMarkers = this.limitMarkers;
             clone.currentData = this.currentData;
             clone.pdLevelCol = this.pdLevelCol;
+            clone.IDCol = this.IDCol;
             
             clone.bestClassRate = Double.NEGATIVE_INFINITY;
             clone.bestMacroAvgTPR = Double.NEGATIVE_INFINITY;
@@ -134,6 +137,8 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         int numOfIncorrectSolutions = 0;
         
         currentJavaFile.append("import jeco.util.Maths;\n");
+        currentJavaFile.append("import jeco.util.FastFourierTransformer;\n");
+                
         
         currentJavaFile.append("public class PopEvaluator").append(threadId).append(" extends jeco.operator.evaluator.AbstractPopEvaluator {\n\n");
         currentJavaFile.append("\tdouble[] var0 ={0.0};\n");
@@ -160,7 +165,8 @@ public class ParkinsonClassifier extends AbstractProblemGE {
          * Implementation of functions of the Grammar
          * */
         currentJavaFile.append("public double MyAvg(double[] array, int[] ex, int[] foot) {\n");
-        currentJavaFile.append("\treturn Maths.mean(getData(array, ex, foot));\n");
+        currentJavaFile.append("\tdouble[] data = getData(array, ex, foot);\n");        
+        currentJavaFile.append("\treturn Double.isNaN(data[0]) ? Double.NaN : Maths.mean(data);\n");
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("public double MySum(double[] array, int[] ex, int[] foot) {\n");
@@ -210,8 +216,24 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("\tpublic double[] MyAbsFFT(double[] array, int[] ex, int[] foot) {\n");
-        currentJavaFile.append("\treturn Maths.absFFT(getData(array, ex, foot));\n");
+//currentJavaFile.append("\treturn Maths.abs(FastFourierTransformer.fft(getData(array, ex, foot)));\n");
+        currentJavaFile.append("\tdouble[] data = getData(array, ex, foot);\n");
+        currentJavaFile.append("\tSystem.out.println(\"data[0] is: \" + data[0]);\n");
+        currentJavaFile.append("\treturn (Double.isNaN(data[0])) ? new double[] {Double.NaN} : Maths.abs(FastFourierTransformer.fft(data));\n");
         currentJavaFile.append("\t}\n");
+        
+//        currentJavaFile.append("public double[] MyConvFFT(double[] array1, double[] array2, int[] ex1, int[] ex2, int[] foot1, int[] foot2) {\n");
+//        currentJavaFile.append("\treturn Maths.abs(FastFourierTransformer.convolve(getData(array1, ex1, foot1), getData(array2, ex2, foot2)));\n");
+//        currentJavaFile.append("\t}\n");
+        
+        currentJavaFile.append("public double[] MyConvFFT(double[] array1, double[] array2, int[] ex1, int[] ex2, int[] foot1, int[] foot2) {\n");
+        currentJavaFile.append("\tdouble[] data1 = getData(array1, ex1, foot1);\n");
+        currentJavaFile.append("\tdouble[] data2 = getData(array2, ex2, foot2);\n");
+currentJavaFile.append("\tSystem.out.println(\"data1[0] is: \" + data1[0] + \" and data2[0] is: \" + data2[0]);\n");
+        currentJavaFile.append("\treturn (Double.isNaN(data1[0]) || Double.isNaN(data2[0])) ? new double[] {Double.NaN} : Maths.abs(FastFourierTransformer.cconvolve(data1, data2));\n");
+        currentJavaFile.append("\t}\n");
+        
+  
         
         /**
          * Utils
@@ -234,6 +256,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\treturn data;\n");
         currentJavaFile.append("\t}\n");
         currentJavaFile.append("\telse {\n");
+currentJavaFile.append("\tSystem.out.println(\"DEVUELVO NAN. allIndexes[0] Y allIndexes[1] VALEN\" + allIndexes[0] + \", \" + allIndexes[1]);\n");
         currentJavaFile.append("\treturn new double[] {Double.NaN};\n");
         currentJavaFile.append("\t}\n");
         currentJavaFile.append("\t}\n");
@@ -312,7 +335,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         for (int s = 0; s < solutions.size(); ++s) {
             Solution<Variable<Integer>> solution = solutions.get(s);
             classifierEval.resetConfusionMatrix();
-            logger.info("Solución: " + generatePhenotype(solution).toString());
+            //logger.info("Solución: " + generatePhenotype(solution).toString());
             computeFolds(evaluator, solution, s, currentData);
             
             double cr = classifierEval.getClassificationRate();
@@ -367,7 +390,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                         toP = limitMarkers[p][ex];
                     }
                 }
-                System.out.println("Patient: " + p + ", From: " + fromP + ", to: " + toP);
+                System.out.println("Patient: GA" + (int)clinicalTable.get(p)[IDCol] + ", From: " + fromP + ", to: " + toP);
                 evaluator.setDataTable((ArrayList<double[]>) dataTable.getDataTable("rawData", fromP, toP));
                 evaluator.setDataLimits(limitMarkers[p]);
                 
@@ -376,16 +399,20 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                 int originalValue = 0;
                 int qResult;
                 
-                qResult = classifier.getQ(resultGE);
-                switch (kindClassifier) {
-                    case "quantizer":
-                        originalValue = (int)clinicalTable.get(p)[pdLevelCol];
-                        break;
-                    case "dichotomizer":
-                        originalValue = ((int)clinicalTable.get(p)[pdLevelCol] > 0) ? 1 : 0;
-                        break;
+                if (!Double.isNaN(resultGE)){
+                    qResult = classifier.getQ(resultGE);
+                    switch (kindClassifier) {
+                        case "quantizer":
+                            originalValue = (int)clinicalTable.get(p)[pdLevelCol];
+                            break;
+                        case "dichotomizer":
+                            originalValue = ((int)clinicalTable.get(p)[pdLevelCol] > 0) ? 1 : 0;
+                            break;
+                    }   
+                    classifierEval.setValue(originalValue, qResult, 1);                    
+                } else {
+                    logger.info("NaN result in GE for patient GA" +  (int)clinicalTable.get(p)[IDCol] + " . Not added to the confussion matrix.");                        
                 }
-                classifierEval.setValue(originalValue, qResult, 1);
             }
         }
     }
@@ -432,7 +459,8 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         // Get the clinical information
         clinicalTable = dataTable.getDataTable("clinicalData");
         pdLevelCol = Integer.valueOf(properties.getProperty("PDLevelCol"));
-        
+        IDCol = Integer.valueOf(properties.getProperty("IDCol"));
+                
         // Get data information (indexes of patients, exercises, feet)
         limitMarkers = dataTable.getLimitMarkers();     
     }
@@ -534,6 +562,16 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                     // Get metrics from training:
                     logger.info("TRAINING,averageAllClasses," + (100*Maths.mean(macroFValueAllFolds)) + "," + (100*Maths.std(macroFValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(macroSensitivityAllFolds)) +  "," + (100*Maths.std(macroSensitivityAllFolds)) + "," + (100*Maths.mean(macroSpecificityAllFolds)) + "," + (100*Maths.std(macroSpecificityAllFolds)) + "," + (100*Maths.mean(macroPrecisionAllFolds)) + "," + (100*Maths.std(macroPrecisionAllFolds)));
                     logger.info("TRAINING,averageClass1," + (100*Maths.mean(fValueAllFolds)) + "," + (100*Maths.std(fValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(sensitivityAllFolds)) +  "," + (100*Maths.std(sensitivityAllFolds)) + "," + (100*Maths.mean(specificityAllFolds)) + "," + (100*Maths.std(specificityAllFolds)) + "," + (100*Maths.mean(precisionAllFolds)) + "," + (100*Maths.std(precisionAllFolds)));
+                    
+                    // Print the confussion matrix
+                    int[][] cf = problem.classifierEval.getConfusionMatrix();
+                    logger.info("Confussion Matrix:");
+                    logger.info("     |F|T|");
+                    logger.info("     |---|");
+                    logger.info("F_GE |" + cf[0][0] + "|" + cf[0][1] + "|");
+                    logger.info("     |---|");
+                    logger.info("T_GE |" + cf[1][0] + "|" + cf[1][1] + "|");
+                    logger.info("     |---|");                
                 }
                 // Finally calculate the final expression, result of training (OUT OF THE IF)
             }
@@ -578,6 +616,15 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             logger.info("Final Training...");
             switch (problem.kindClassifier) {
                 case "dichotomizer":
+                    // Print the confussion matrix
+                    int[][] cf = problem.classifierEval.getConfusionMatrix();
+                    logger.info("Confussion Matrix:");
+                    logger.info("     |F|T|");
+                    logger.info("     |---|");
+                    logger.info("F_GE |" + cf[0][0] + "|" + cf[0][1] + "|");
+                    logger.info("     |---|");
+                    logger.info("T_GE |" + cf[1][0] + "|" + cf[1][1] + "|");
+                    logger.info("     |---|");           
                     logger.info("FINAL_TRAINING,PD class," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
                     break;
             }
@@ -600,6 +647,15 @@ public class ParkinsonClassifier extends AbstractProblemGE {
 
             switch (problem.kindClassifier) {
                 case "dichotomizer":
+                    // Print the confussion matrix
+                    int[][] cf = problem.classifierEval.getConfusionMatrix();
+                    logger.info("Confussion Matrix:");
+                    logger.info("     |F|T|");
+                    logger.info("     |---|");
+                    logger.info("F_GE |" + cf[0][0] + "|" + cf[0][1] + "|");
+                    logger.info("     |---|");
+                    logger.info("T_GE |" + cf[1][0] + "|" + cf[1][1] + "|");
+                    logger.info("     |---|");           
                     logger.info("FINAL_TEST,PD class," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
                     break;
             }

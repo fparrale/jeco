@@ -105,7 +105,7 @@ public class ClassifierEvaluator {
         return 2/((1/(getMicroAveragePrecision()))+(1/(getMicroAverageSensitivity())));
     }
     
-    // Micro-averaged values
+    // Macro-averaged values
     public double getMacroAveragePrecision(){
         double sumAllPrecisions = 0.0;
         
