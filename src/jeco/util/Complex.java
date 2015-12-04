@@ -46,15 +46,6 @@ public class Complex {
         return Math.hypot(real, imag);
     }  // Math.sqrt(re*re + im*im)
 
-    public double[] abs(Complex[] c) {
-        double[] a = new double[c.length];
-        
-        for (int i=0; i<c.length; i++){
-            a[i] = c[i].abs();
-        }
-        return a;
-    }  
-     
     public double phase() {
         return Math.atan2(imag, real);
     }  // between -pi and pi
