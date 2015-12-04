@@ -15,7 +15,7 @@ public class FastFourierTransformer {
     public FastFourierTransformer() {
     }
 
-    public Complex[] completeWithZero(Complex[] x) {
+    public static Complex[] completeWithZero(Complex[] x) {
         int powerOfTwo = 1;
         long maxPowerOfTo = 2147483648L;
         while (powerOfTwo < x.length && powerOfTwo < maxPowerOfTo) {
@@ -30,35 +30,65 @@ public class FastFourierTransformer {
         }
         return xx;
     }
+    
+    public static Complex[] zeroPadding(Complex[] cc, int length) {
+        int finalLength = cc.length;
+        while (finalLength < length) {
+            finalLength += 1;
+        }
+        
+        Complex[] c = new Complex[finalLength];
+        
+        if (cc.length < length){
+            for (int i = 0; i < cc.length; ++i) {
+                c[i] = cc[i];
+            }
+            for (int i = c.length; i < length; ++i) {
+                c[i] = new Complex(0, 0);
+            }
+        } else {
+            c = cc;
+        }
+        return c;
+    }
 
-    public Complex[] fft(Complex[] xx) {
+    public static Complex[] doubleToComplex(double[] x) {
+        Complex[] c = new Complex[x.length];
+        
+        for (int i=0; i<x.length; i++) {
+            c[i] = new Complex(x[i], 0);
+        }
+        return c;
+    }
+    
+    public static Complex[] fft(Complex[] xx) {
         Complex[] x = completeWithZero(xx);
         int N = x.length;
-
+        
         // base case
         if (N == 1) {
             return new Complex[]{x[0]};
         }
-
+        
         // radix 2 Cooley-Tukey FFT
         if (N % 2 != 0) {
             throw new RuntimeException("N is not a power of 2");
         }
-
+        
         // fft of even terms
         Complex[] even = new Complex[N / 2];
         for (int k = 0; k < N / 2; k++) {
             even[k] = x[2 * k];
         }
         Complex[] q = fft(even);
-
+        
         // fft of odd terms
         Complex[] odd = even;  // reuse the array
         for (int k = 0; k < N / 2; k++) {
             odd[k] = x[2 * k + 1];
         }
         Complex[] r = fft(odd);
-
+        
         // combine
         Complex[] y = new Complex[N];
         for (int k = 0; k < N / 2; k++) {
@@ -69,81 +99,75 @@ public class FastFourierTransformer {
         }
         return y;
     }
-
-    public Complex[] fft(double[] x) {
-        Complex[] s = new Complex[x.length];
-        
-        for (int i=0; i<x.length; i++) {
-            s[i] = new Complex(x[i], 0);
-        }
-        Complex[] fft = fft(s);
-        return fft;
+    
+    public static Complex[] fft(double[] x) {
+        return fft(doubleToComplex(x));
     }
     
-    
     // compute the inverse FFT of x[], assuming its length is a power of 2
-    public Complex[] ifft(Complex[] x) {
+    public static Complex[] ifft(Complex[] x) {
         int N = x.length;
         Complex[] y = new Complex[N];
-
+        
         // take conjugate
         for (int i = 0; i < N; i++) {
             y[i] = x[i].conjugate();
         }
-
+        
         // compute forward FFT
         y = fft(y);
-
+        
         // take conjugate again
         for (int i = 0; i < N; i++) {
             y[i] = y[i].conjugate();
         }
-
+        
         // divide by N
         for (int i = 0; i < N; i++) {
             y[i] = y[i].times(1.0 / N);
         }
-
-        return y;
-
-    }
-
-    public Complex[] ifft(double[] x) {
-        Complex[] s = new Complex[x.length];
         
-        for (int i=0; i<x.length; i++) {
-            s[i] = new Complex(x[i], 0);
-        }
-        return ifft(s);       
+        return y;
+    }
+    
+    public static Complex[] ifft(double[] x) {
+        return ifft(doubleToComplex(x));
     }
     
     // compute the circular convolution of x and y
-    public Complex[] cconvolve(Complex[] x, Complex[] y) {
-
-        // should probably pad x and y with 0s so that they have same length
+    public static Complex[] cconvolve(Complex[] xx, Complex[] yy) {
+        // Pad x and y with 0s so that they have same length
         // and are powers of 2
+        Complex[] x = zeroPadding(xx, yy.length);
+        Complex[] y = zeroPadding(yy, xx.length);
+        
         if (x.length != y.length) {
             throw new RuntimeException("Dimensions don't agree");
         }
-
+        
         int N = x.length;
-
+        
         // compute FFT of each sequence
         Complex[] a = fft(x);
         Complex[] b = fft(y);
-
+        
         // point-wise multiply
         Complex[] c = new Complex[N];
         for (int i = 0; i < N; i++) {
             c[i] = a[i].times(b[i]);
         }
-
+        
         // compute inverse FFT
         return ifft(c);
     }
+    
 
+    public static Complex[] cconvolve(double[] x, double[] y) {
+        return cconvolve(doubleToComplex(x), doubleToComplex(y));
+    }
+    
     // compute the linear convolution of x and y
-    public Complex[] convolve(Complex[] x, Complex[] y) {
+    public static Complex[] convolve(Complex[] x, Complex[] y) {
         Complex ZERO = new Complex(0, 0);
 
         Complex[] a = new Complex[2 * x.length];
@@ -165,8 +189,12 @@ public class FastFourierTransformer {
         return cconvolve(a, b);
     }
 
+    public static Complex[] convolve(double[] x, double[] y) {
+        return convolve(doubleToComplex(x), doubleToComplex(y));
+    }
+
     // display an array of Complex numbers to standard output
-    public void show(Complex[] x, String title) {
+    public static void show(Complex[] x, String title) {
         System.out.println(title);
         System.out.println("-------------------");
         for (Complex x1 : x) {
