@@ -9,10 +9,10 @@ import java.util.List;
 
 /**
  *
- * @author jlrisco
+ * @author José Luis Risco Martín <jlrisco at ucm.es>
+ * @author Josué Pagán Ortiz <jpagan at ucm.es>
  */
 public class Maths {
-    FastFourierTransformer FastFourierTransformer;
     
     public static double sum(List<Double> numbers) {
         double res = 0;
@@ -209,6 +209,20 @@ public class Maths {
                 numbers[i] = Math.abs(numbers[i]);
             }
             return numbers;
+        }
+        else {
+            return new double[] {Double.NaN};
+        }
+    }
+    
+    public static double[] abs(Complex[] c) {
+        if (!Double.isNaN(c[0].getReal()) && !Double.isNaN(c[0].getImag())){            
+            double[] a = new double[c.length];
+            
+            for (int i=0; i<c.length; i++){
+                a[i] = c[i].abs();
+            }
+            return a;  
         }
         else {
             return new double[] {Double.NaN};
