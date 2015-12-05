@@ -58,6 +58,7 @@ import jeco.util.Maths;
 public class ParkinsonClassifier extends AbstractProblemGE {
     
     private static final Logger logger = Logger.getLogger(ParkinsonClassifier.class.getName());
+    private static boolean whoWas = false;
     
     private static int CURRENT_THREAD_ID = 1;
     protected int threadId;
@@ -170,66 +171,69 @@ public class ParkinsonClassifier extends AbstractProblemGE {
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("public double MySum(double[] array, int[] ex, int[] foot) {\n");
-        currentJavaFile.append("\treturn Maths.sum(getData(array, ex, foot));\n");
+        currentJavaFile.append("\tdouble[] data = getData(array, ex, foot);\n");        
+        currentJavaFile.append("\treturn Double.isNaN(data[0]) ? Double.NaN : Maths.sum(data);\n");
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("public double MyMax(double[] array, int[] ex, int[] foot) {\n");
-        currentJavaFile.append("\treturn Maths.max(getData(array, ex, foot));\n");
+        currentJavaFile.append("\tdouble[] data = getData(array, ex, foot);\n");        
+        currentJavaFile.append("\treturn Double.isNaN(data[0]) ? Double.NaN : Maths.max(data);\n");
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("public double MyMin(double[] array, int[] ex, int[] foot) {\n");
-        currentJavaFile.append("\treturn Maths.min(getData(array, ex, foot));\n");
+        currentJavaFile.append("\tdouble[] data = getData(array, ex, foot);\n");        
+        currentJavaFile.append("\treturn Double.isNaN(data[0]) ? Double.NaN : Maths.min(data);\n");
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("\tpublic double MyStd(double[] array, int[] ex, int[] foot) {\n");
-        currentJavaFile.append("\treturn Maths.std(getData(array, ex, foot));\n");
+        currentJavaFile.append("\tdouble[] data = getData(array, ex, foot);\n");        
+        currentJavaFile.append("\treturn Double.isNaN(data[0]) ? Double.NaN : Maths.std(data);\n");
         currentJavaFile.append("\t}\n");
-        
         
         currentJavaFile.append("\tpublic double MyTotalVar(double[] array, int[] ex, int[] foot) {\n");
-        currentJavaFile.append("\treturn Maths.totalVar(getData(array, ex, foot));\n");
+        currentJavaFile.append("\tdouble[] data = getData(array, ex, foot);\n");        
+        currentJavaFile.append("\treturn Double.isNaN(data[0]) ? Double.NaN : Maths.totalVar(data);\n");
         currentJavaFile.append("\t}\n");
         
-        
         currentJavaFile.append("public double MyPod(double[] array, int[] ex, int[] foot) {\n");
-        currentJavaFile.append("\treturn Maths.pod(getData(array, ex, foot));\n");
+        currentJavaFile.append("\tdouble[] data = getData(array, ex, foot);\n");        
+        currentJavaFile.append("\treturn Double.isNaN(data[0]) ? Double.NaN : Maths.pod(data);\n");
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("public double MyGeoAvg(double[] array, int[] ex, int[] foot) {\n");
-        currentJavaFile.append("\treturn Maths.geoMean(getData(array, ex, foot));\n");
+        currentJavaFile.append("\tdouble[] data = getData(array, ex, foot);\n");        
+        currentJavaFile.append("\treturn Double.isNaN(data[0]) ? Double.NaN : Maths.geoMean(data);\n");
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("\tpublic double[] MyPow(double[] array, int[] ex, int[] foot, double pow) {\n");
-        currentJavaFile.append("\treturn Maths.pow(getData(array, ex, foot), pow);\n");
+        currentJavaFile.append("\tdouble[] data = getData(array, ex, foot);\n");        
+        currentJavaFile.append("\treturn Double.isNaN(data[0]) ? new double[]  {Double.NaN} : Maths.pow(data, pow);\n");
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("public double[] MyConv(double[] array1, double[] array2, int[] ex1, int[] ex2, int[] foot1, int[] foot2) {\n");
-        currentJavaFile.append("\treturn Maths.conv(getData(array1, ex1, foot1), getData(array2, ex2, foot2));\n");
+        currentJavaFile.append("\tdouble[] data1 = getData(array1, ex1, foot1);\n");
+        currentJavaFile.append("\tdouble[] data2 = getData(array2, ex2, foot2);\n");
+        currentJavaFile.append("\treturn (Double.isNaN(data1[0]) || Double.isNaN(data2[0])) ? new double[] {Double.NaN} : Maths.conv(data1, data2);\n");
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("\tpublic double[] MyDiff(double[] array, int[] ex, int[] foot) {\n");
-        currentJavaFile.append("\treturn Maths.diff(getData(array, ex, foot));\n");
+        currentJavaFile.append("\tdouble[] data = getData(array, ex, foot);\n");        
+        currentJavaFile.append("\treturn Double.isNaN(data[0]) ? new double[]  {Double.NaN} : Maths.diff(data);\n");
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("\tpublic double[] MyAbs(double[] array, int[] ex, int[] foot) {\n");
-        currentJavaFile.append("\treturn Maths.abs(getData(array, ex, foot));\n");
+        currentJavaFile.append("\tdouble[] data = getData(array, ex, foot);\n");        
+        currentJavaFile.append("\treturn Double.isNaN(data[0]) ? new double[]  {Double.NaN} : Maths.abs(data);\n");
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("\tpublic double[] MyAbsFFT(double[] array, int[] ex, int[] foot) {\n");
-//currentJavaFile.append("\treturn Maths.abs(FastFourierTransformer.fft(getData(array, ex, foot)));\n");
         currentJavaFile.append("\tdouble[] data = getData(array, ex, foot);\n");
-        currentJavaFile.append("\tSystem.out.println(\"data[0] is: \" + data[0]);\n");
         currentJavaFile.append("\treturn (Double.isNaN(data[0])) ? new double[] {Double.NaN} : Maths.abs(FastFourierTransformer.fft(data));\n");
         currentJavaFile.append("\t}\n");
-        
-//        currentJavaFile.append("public double[] MyConvFFT(double[] array1, double[] array2, int[] ex1, int[] ex2, int[] foot1, int[] foot2) {\n");
-//        currentJavaFile.append("\treturn Maths.abs(FastFourierTransformer.convolve(getData(array1, ex1, foot1), getData(array2, ex2, foot2)));\n");
-//        currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("public double[] MyConvFFT(double[] array1, double[] array2, int[] ex1, int[] ex2, int[] foot1, int[] foot2) {\n");
         currentJavaFile.append("\tdouble[] data1 = getData(array1, ex1, foot1);\n");
         currentJavaFile.append("\tdouble[] data2 = getData(array2, ex2, foot2);\n");
-currentJavaFile.append("\tSystem.out.println(\"data1[0] is: \" + data1[0] + \" and data2[0] is: \" + data2[0]);\n");
         currentJavaFile.append("\treturn (Double.isNaN(data1[0]) || Double.isNaN(data2[0])) ? new double[] {Double.NaN} : Maths.abs(FastFourierTransformer.cconvolve(data1, data2));\n");
         currentJavaFile.append("\t}\n");
         
@@ -256,7 +260,6 @@ currentJavaFile.append("\tSystem.out.println(\"data1[0] is: \" + data1[0] + \" a
         currentJavaFile.append("\treturn data;\n");
         currentJavaFile.append("\t}\n");
         currentJavaFile.append("\telse {\n");
-currentJavaFile.append("\tSystem.out.println(\"DEVUELVO NAN. allIndexes[0] Y allIndexes[1] VALEN\" + allIndexes[0] + \", \" + allIndexes[1]);\n");
         currentJavaFile.append("\treturn new double[] {Double.NaN};\n");
         currentJavaFile.append("\t}\n");
         currentJavaFile.append("\t}\n");
@@ -390,28 +393,44 @@ currentJavaFile.append("\tSystem.out.println(\"DEVUELVO NAN. allIndexes[0] Y all
                         toP = limitMarkers[p][ex];
                     }
                 }
-                System.out.println("Patient: GA" + (int)clinicalTable.get(p)[IDCol] + ", From: " + fromP + ", to: " + toP);
+                //System.out.println("Patient: GA" + (int)clinicalTable.get(p)[IDCol] + ", From: " + fromP + ", to: " + toP);
                 evaluator.setDataTable((ArrayList<double[]>) dataTable.getDataTable("rawData", fromP, toP));
                 evaluator.setDataLimits(limitMarkers[p]);
                 
                 // Compute and classify GE:
                 double resultGE = evaluator.evaluate(solIdx, -1);
                 int originalValue = 0;
-                int qResult;
+                int qResult = 0;
                 
+                switch (kindClassifier) {
+                    case "quantizer":
+                        originalValue = (int)clinicalTable.get(p)[pdLevelCol];
+                        break;
+                    case "dichotomizer":
+                        originalValue = ((int)clinicalTable.get(p)[pdLevelCol] > 0) ? 1 : 0;
+                        break;
+                }
+
                 if (!Double.isNaN(resultGE)){
                     qResult = classifier.getQ(resultGE);
+                } else if (whoWas) {
+                    // Store as a misclassification (max difference). This 
+                    // happens mostly when an exercise is not available for a patient.
                     switch (kindClassifier) {
-                        case "quantizer":
-                            originalValue = (int)clinicalTable.get(p)[pdLevelCol];
-                            break;
                         case "dichotomizer":
-                            originalValue = ((int)clinicalTable.get(p)[pdLevelCol] > 0) ? 1 : 0;
+                            if (originalValue == 1) {
+                                qResult = 0;
+                            } else {
+                                qResult = 1;
+                            }
+                            logger.info("NaN result for patient GA" +  (int)clinicalTable.get(p)[IDCol]);                        
                             break;
-                    }   
-                    classifierEval.setValue(originalValue, qResult, 1);                    
-                } else {
-                    logger.info("NaN result in GE for patient GA" +  (int)clinicalTable.get(p)[IDCol] + " . Not added to the confussion matrix.");                        
+                    }
+                }
+                classifierEval.setValue(originalValue, qResult, 1);                    
+
+                if ((originalValue != qResult) && whoWas) {
+                    logger.info("Misclassification of patient GA" +  (int)clinicalTable.get(p)[IDCol] + " . Original: " + originalValue + ", resultGE: " + qResult);                        
                 }
             }
         }
@@ -541,6 +560,9 @@ currentJavaFile.append("\tSystem.out.println(\"DEVUELVO NAN. allIndexes[0] Y all
                     // This is the result of the training of this folder
                     problem.currentData = problem.getValidationFold(problem.dataTable.getPatientsIdXs(true), i);;
                     
+                    // Track misclassifications:
+                    whoWas = true;
+            
                     // Evaluate the hold folding with the best solution found (each thread):
                     Solutions<Variable<Integer>> tempSolutions = new Solutions<>();
                     tempSolutions.add(bestSolution);
@@ -571,7 +593,9 @@ currentJavaFile.append("\tSystem.out.println(\"DEVUELVO NAN. allIndexes[0] Y all
                     logger.info("F_GE |" + cf[0][0] + "|" + cf[0][1] + "|");
                     logger.info("     |---|");
                     logger.info("T_GE |" + cf[1][0] + "|" + cf[1][1] + "|");
-                    logger.info("     |---|");                
+                    logger.info("     |---|");   
+
+                    whoWas = false;                                        
                 }
                 // Finally calculate the final expression, result of training (OUT OF THE IF)
             }
@@ -581,6 +605,9 @@ currentJavaFile.append("\tSystem.out.println(\"DEVUELVO NAN. allIndexes[0] Y all
             problem = new ParkinsonClassifier(properties);
             problem.loadData("training");
             problem.classifierEval.resetConfusionMatrix();
+            
+            // Track misclassifications:
+            whoWas = true;
             
             // Select all the patients:
             problem.currentData = problem.dataTable.getPatientsIdXs(false);
@@ -625,15 +652,17 @@ currentJavaFile.append("\tSystem.out.println(\"DEVUELVO NAN. allIndexes[0] Y all
                     logger.info("     |---|");
                     logger.info("T_GE |" + cf[1][0] + "|" + cf[1][1] + "|");
                     logger.info("     |---|");           
-                    logger.info("FINAL_TRAINING,PD class," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
+                    logger.info("FINAL_TRAINING,PD class 1," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
                     break;
             }
             logger.info("FINAL_TRAINING,All classes," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);
-            logger.info("...done");
+            logger.info("...final training done");
             
             ////////////////////////////////////////////////////////////////////
             // TEST
             // Take the solution found with all the patients. Evaluate over the test data-set:
+            logger.info("TEST:");
+
             problem = new ParkinsonClassifier(properties);
             problem.loadData("test");
             problem.classifierEval.resetConfusionMatrix();
@@ -656,7 +685,7 @@ currentJavaFile.append("\tSystem.out.println(\"DEVUELVO NAN. allIndexes[0] Y all
                     logger.info("     |---|");
                     logger.info("T_GE |" + cf[1][0] + "|" + cf[1][1] + "|");
                     logger.info("     |---|");           
-                    logger.info("FINAL_TEST,PD class," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
+                    logger.info("FINAL_TEST,PD class 1," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
                     break;
             }
             logger.info("FINAL_TEST,All classes," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);

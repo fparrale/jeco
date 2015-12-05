@@ -32,6 +32,8 @@ public class FastFourierTransformer {
     }
     
     public static Complex[] zeroPadding(Complex[] cc, int length) {
+        Complex ZERO = new Complex(0, 0);
+
         int finalLength = cc.length;
         while (finalLength < length) {
             finalLength += 1;
@@ -43,13 +45,14 @@ public class FastFourierTransformer {
             for (int i = 0; i < cc.length; ++i) {
                 c[i] = cc[i];
             }
-            for (int i = c.length; i < length; ++i) {
-                c[i] = new Complex(0, 0);
+            for (int i = cc.length; i < length; ++i) {
+                c[i] = ZERO;
             }
         } else {
             c = cc;
         }
-        return c;
+        // Complete 'till the next power of 2
+        return completeWithZero(c);
     }
 
     public static Complex[] doubleToComplex(double[] x) {
@@ -141,19 +144,17 @@ public class FastFourierTransformer {
         Complex[] x = zeroPadding(xx, yy.length);
         Complex[] y = zeroPadding(yy, xx.length);
         
-        if (x.length != y.length) {
-            throw new RuntimeException("Dimensions don't agree");
-        }
-        
-        int N = x.length;
-        
         // compute FFT of each sequence
         Complex[] a = fft(x);
         Complex[] b = fft(y);
         
+        if (a.length != b.length) {
+            System.out.println("Dimensions don't agree"); 
+        }
+
         // point-wise multiply
-        Complex[] c = new Complex[N];
-        for (int i = 0; i < N; i++) {
+        Complex[] c = new Complex[a.length];
+        for (int i = 0; i < a.length; i++) {
             c[i] = a[i].times(b[i]);
         }
         

@@ -11,7 +11,7 @@
 
 <MyFcn> ::= MyAvg|MySum|MyMax|MyMin|MyStd|MyTotalVar|MyPod|MyGeoAvg
 
-<MyTempFcn> ::= <MyAbs>|<MyDiff>|<MyPow>|<MyConv>
+<MyTempFcn> ::= <MyAbs>|<MyDiff>|<MyPow>
 <MyFreqFcn> ::= <MyAbsFFT>|<MyConvFFT>
 
 <MyConv> ::= MyConv(<MySensor>,<MySensor>,<Exercise>,<Exercise>,<Foot>,<Foot>)|MyConv(<MyTempFcn>,<MyTempFcn>,noEx,noEx,<Foot>,<Foot>)|MyConv(<MySensor>,<MyTempFcn>,<Exercise>,noEx,<Foot>,<Foot>)
