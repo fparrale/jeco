@@ -339,7 +339,9 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             Solution<Variable<Integer>> solution = solutions.get(s);
             classifierEval.resetConfusionMatrix();
             //logger.info("Solución: " + generatePhenotype(solution).toString());
-            computeFolds(evaluator, solution, s, currentData);
+            double resultGE = evaluator.evaluate(s, -1);
+
+            computeFolds(evaluator, resultGE, currentData);
             
             double cr = classifierEval.getClassificationRate();
             double macroPPV = classifierEval.getMacroAveragePrecision();
@@ -377,7 +379,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
     
    
     
-    public void computeFolds(AbstractPopEvaluator evaluator, Solution<Variable<Integer>> solution, int solIdx, int[][] data) {
+    public void computeFolds(AbstractPopEvaluator evaluator, double resultGE, int[][] data) {
         // For every patient apply the solution
         for (int[] folds1 : data) {
             for (int j = 0; j < data[0].length; j++) {
@@ -398,7 +400,6 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                 evaluator.setDataLimits(limitMarkers[p]);
                 
                 // Compute and classify GE:
-                double resultGE = evaluator.evaluate(solIdx, -1);
                 int originalValue = 0;
                 int qResult = 0;
                 
@@ -413,7 +414,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
 
                 if (!Double.isNaN(resultGE)){
                     qResult = classifier.getQ(resultGE);
-                } else if (whoWas) {
+                } else {
                     // Store as a misclassification (max difference). This 
                     // happens mostly when an exercise is not available for a patient.
                     switch (kindClassifier) {
@@ -423,7 +424,9 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                             } else {
                                 qResult = 1;
                             }
-                            logger.info("NaN result for patient GA" +  (int)clinicalTable.get(p)[IDCol]);                        
+                            if (whoWas){
+                                logger.info("NaN result for patient GA" +  (int)clinicalTable.get(p)[IDCol]);
+                            }
                             break;
                     }
                 }
@@ -561,7 +564,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
                     problem.currentData = problem.getValidationFold(problem.dataTable.getPatientsIdXs(true), i);;
                     
                     // Track misclassifications:
-                    whoWas = true;
+                    whoWas = false;
             
                     // Evaluate the hold folding with the best solution found (each thread):
                     Solutions<Variable<Integer>> tempSolutions = new Solutions<>();
@@ -607,7 +610,7 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             problem.classifierEval.resetConfusionMatrix();
             
             // Track misclassifications:
-            whoWas = true;
+            whoWas = false;
             
             // Select all the patients:
             problem.currentData = problem.dataTable.getPatientsIdXs(false);
@@ -662,7 +665,8 @@ public class ParkinsonClassifier extends AbstractProblemGE {
             // TEST
             // Take the solution found with all the patients. Evaluate over the test data-set:
             logger.info("TEST:");
-
+            // Track misclassifications:
+            whoWas = true;
             problem = new ParkinsonClassifier(properties);
             problem.loadData("test");
             problem.classifierEval.resetConfusionMatrix();
