@@ -15,7 +15,8 @@ public abstract class AbstractPopEvaluator {
     
     protected ArrayList<double[]> dataTable;
     protected int[] dataLimits;
-
+    protected ArrayList <String> featuresNames;
+    
     public abstract void evaluateExpression(int idxExpr);
     public abstract double evaluate(int idxExpr, int k);
     
@@ -27,6 +28,10 @@ public abstract class AbstractPopEvaluator {
         this.dataLimits = dataLimits;
     }
     
+    public void setFeaturesNames(ArrayList names){
+        this.featuresNames = names;
+    }
+    
     public ArrayList<double[]> getDataTable() {
         return dataTable;
     }
@@ -36,6 +41,31 @@ public abstract class AbstractPopEvaluator {
         limits[0] = dataLimits[4*ex+2*f];
         limits[1] = dataLimits[4*ex+2*f+1];
         return limits;
+    }
+    
+    public int getDataLimits(String name) {
+        int limit = Integer.MAX_VALUE;
+        if ((featuresNames.indexOf(name) > 0) && (featuresNames.indexOf(name) != Integer.MAX_VALUE)){
+            limit = featuresNames.indexOf(name);
+        }        
+        return limit;
+    }
+    
+    public double getDataTable(String name, int k){
+        int idxVar = getDataLimits(name);
+        if (idxVar != Integer.MAX_VALUE){
+            if (k < 0) {
+                return dataTable.get(0)[idxVar];
+            }
+            else if (k >= dataTable.size()) {
+                return dataTable.get(dataTable.size()-1)[idxVar];
+            }
+            else {
+                return dataTable.get(k)[idxVar];
+            }
+        } else {
+            return Double.NaN;
+        }
     }
     
     public double getDataTable(int idxVar, int k){
