@@ -16,7 +16,7 @@
 
 
 <ClinicalIdx> ::= Age|Weight|Height
-<FeatureIdx> ::= <IdxGroup1>|<IdxGroup3>|<IdxGroup3>|<IdxGroup4>
+<FeatureIdx> ::= <IdxGroup1>|<IdxGroup2>|<IdxGroup3>|<IdxGroup4>
 <IdxGroup1> ::= GZ_Step_<FeatGroup1>_<Foot>
 <IdxGroup2> ::= <Sensor>_Step_<FeatGroup2><Foot>
 <IdxGroup3> ::= <Sensor>_<Exercise>_Seq_<FeatGroup3><Foot>

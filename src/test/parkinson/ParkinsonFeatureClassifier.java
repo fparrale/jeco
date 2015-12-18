@@ -73,7 +73,9 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
     protected int pdLevelCol;
     protected int IDCol;
 
-    
+    protected double[][] resultsMatrix;
+    protected double[][] bestResultsMatrix;
+
     protected double bestClassRate = Double.NEGATIVE_INFINITY;
     protected double bestMacroAvgTPR = Double.NEGATIVE_INFINITY;
     protected double bestMacroAvgTNR = Double.NEGATIVE_INFINITY;
@@ -313,7 +315,6 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
         }
         
         // Load all the features of all the patients
-        evaluator.setDataTable((ArrayList<double[]>) featuresTable.getFeaturesTable("features"));
         evaluator.setFeaturesNames(featuresTable.getFeaturesTable("names"));
 
         // For each solution
@@ -321,9 +322,8 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
             Solution<Variable<Integer>> solution = solutions.get(s);
             classifierEval.resetConfusionMatrix();
             //logger.info("Solución: " + generatePhenotype(solution).toString());
-            double resultGE = evaluator.evaluate(s, -1);
 
-            computeFolds(evaluator, resultGE, currentData);
+            computeFolds(evaluator, solution, s, currentData);
             
             double cr = classifierEval.getClassificationRate();
             double macroPPV = classifierEval.getMacroAveragePrecision();
@@ -344,6 +344,8 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                 bestMacroAvgPPV = macroPPV;
                 bestMacroAvgF = macroFvalue;
                 logger.info("BEST FOUND, Thread-Id: " + threadId + ", Macro F-value=" + (100*macroFvalue) + "; Expresion=" + bestExpression);
+            
+                bestResultsMatrix = resultsMatrix;                
             }
         }
     }
@@ -361,13 +363,20 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
     
    
     
-    public void computeFolds(AbstractPopEvaluator evaluator, double resultGE, int[][] data) {
+    public void computeFolds(AbstractPopEvaluator evaluator, Solution<Variable<Integer>> solution, int solIdx, int[][] data) {
+        int it = 0;
+        resultsMatrix = new double[data.length*data[0].length][2];
+        
         // For every patient apply the solution
         for (int[] folds1 : data) {
             for (int j = 0; j < data[0].length; j++) {
                 int p = folds1[j];
                 
+                //System.out.println("Patient: GA" + (int)featuresTable.table.get(p)[IDCol]);
+                evaluator.setDataTable((ArrayList<double[]>) featuresTable.getFeaturesTable(p, p+1));
+                
                 // Compute and classify GE:
+                double resultGE = evaluator.evaluate(solIdx, -1);
                 int originalValue = 0;
                 int qResult = 0;
                 
@@ -380,6 +389,10 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                         break;
                 }
 
+                resultsMatrix[it][0] = resultGE;
+                resultsMatrix[it++][1] = originalValue;
+
+                
                 if (!Double.isNaN(resultGE)){
                     qResult = classifier.getQ(resultGE);
                 } else {
@@ -460,7 +473,6 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
             propertiesFilePath = args[0];
         }
         
-        
         try {
             // TRAINING
             Properties properties = loadProperties(propertiesFilePath);
@@ -511,7 +523,6 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                             popAfterExecution = algorithm.execute();
                     }
                     
-                    
                     // Take the best of all threads:
                     Solution<Variable<Integer>> bestSolution = popAfterExecution.get(0);
                     
@@ -522,6 +533,7 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                     problem.bestMacroAvgTNR = Double.NEGATIVE_INFINITY;
                     problem.bestMacroAvgF = Double.NEGATIVE_INFINITY;
                     problem.bestMacroAvgPPV = Double.NEGATIVE_INFINITY;
+                    problem.bestResultsMatrix = null;
                     
                     // Validate the best function with the holded fold
                     // This is the result of the training of this folder
@@ -624,6 +636,12 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
             }
             logger.info("FINAL_TRAINING,All classes," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);
             logger.info("...final training done");
+            
+            /* Print resutlsGE VS real values of the training*/
+            logger.info("resultsGE,realValue");
+            for (int y=0; y<problem.bestResultsMatrix.length; y++){
+                logger.info(problem.bestResultsMatrix[y][0] + "," + problem.bestResultsMatrix[y][1]);
+            }
             
             ////////////////////////////////////////////////////////////////////
             // TEST
