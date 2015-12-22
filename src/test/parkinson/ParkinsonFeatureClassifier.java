@@ -72,10 +72,10 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
     protected int[][] currentData;
     protected int pdLevelCol;
     protected int IDCol;
-
+    
     protected double[][] resultsMatrix;
     protected double[][] bestResultsMatrix;
-
+    
     protected double bestClassRate = Double.NEGATIVE_INFINITY;
     protected double bestMacroAvgTPR = Double.NEGATIVE_INFINITY;
     protected double bestMacroAvgTNR = Double.NEGATIVE_INFINITY;
@@ -86,7 +86,7 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
     protected int bestSolIdx;
     protected int bestNumGeneration;
     
-     @Override
+    @Override
     public ParkinsonFeatureClassifier clone() {
         ParkinsonFeatureClassifier clone = null;
         try {
@@ -138,10 +138,10 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
         currentJavaFile.append("import jeco.util.Maths;\n");
         currentJavaFile.append("import jeco.util.FastFourierTransformer;\n");
         currentJavaFile.append("import jeco.util.string.stringManagement;\n");
-
+        
         
         currentJavaFile.append("public class PopEvaluator").append(threadId).append(" extends jeco.operator.evaluator.AbstractPopEvaluator {\n\n");
-            
+        
         /**
          * Implementation of functions of the Grammar for discrete Features
          * */
@@ -181,12 +181,12 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
         currentJavaFile.append("\treturn Maths.sum(stringToArray(arrayS));\n");
         currentJavaFile.append("\t}\n");
         
-              
-        /* Average */        
+        
+        /* Average */
         currentJavaFile.append("public double MyFeatAvg(double a, double b) {\n");
         currentJavaFile.append("\tdouble[] data = new double[2];\n");
         currentJavaFile.append("\tdata[0] = a;\n");
-        currentJavaFile.append("\tdata[1] = b;\n");      
+        currentJavaFile.append("\tdata[1] = b;\n");
         currentJavaFile.append("\treturn Maths.mean(data);\n");
         currentJavaFile.append("\t}\n");
         
@@ -194,19 +194,19 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
         currentJavaFile.append("\treturn Maths.mean(stringToArray(arrayS));\n");
         currentJavaFile.append("\t}\n");
         
-        /* Std */        
+        /* Std */
         currentJavaFile.append("public double MyFeatStd(double a, double b) {\n");
         currentJavaFile.append("\tdouble[] data = new double[2];\n");
         currentJavaFile.append("\tdata[0] = a;\n");
-        currentJavaFile.append("\tdata[1] = b;\n");      
+        currentJavaFile.append("\tdata[1] = b;\n");
         currentJavaFile.append("\treturn Maths.std(data);\n");
         currentJavaFile.append("\t}\n");
         
         currentJavaFile.append("public double MyFeatStd(String arrayS) {\n");
         currentJavaFile.append("\treturn Maths.std(stringToArray(arrayS));\n");
         currentJavaFile.append("\t}\n");
-     
-     
+        
+        
         /* Pow */
         currentJavaFile.append("public double MyPow(double a, double pow) {\n");
         currentJavaFile.append("\treturn Math.pow(a, pow);\n");
@@ -215,7 +215,7 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
         currentJavaFile.append("public double MyFeatSum(String s, double pow) {\n");
         currentJavaFile.append("\treturn Math.pow(stringToArray(s)[0], pow);\n");
         currentJavaFile.append("\t}\n");
-
+        
         
         /**
          * Utils
@@ -316,13 +316,13 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
         
         // Load all the features of all the patients
         evaluator.setFeaturesNames(featuresTable.getFeaturesTable("names"));
-
+        
         // For each solution
         for (int s = 0; s < solutions.size(); ++s) {
             Solution<Variable<Integer>> solution = solutions.get(s);
             classifierEval.resetConfusionMatrix();
             //logger.info("Solución: " + generatePhenotype(solution).toString());
-
+            
             computeFolds(evaluator, solution, s, currentData);
             
             double cr = classifierEval.getClassificationRate();
@@ -344,8 +344,8 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                 bestMacroAvgPPV = macroPPV;
                 bestMacroAvgF = macroFvalue;
                 logger.info("BEST FOUND, Thread-Id: " + threadId + ", Macro F-value=" + (100*macroFvalue) + "; Expresion=" + bestExpression);
-            
-                bestResultsMatrix = resultsMatrix;                
+                
+                bestResultsMatrix = resultsMatrix;
             }
         }
     }
@@ -361,7 +361,7 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
         logger.severe("The solutions should be already evaluated. You should not see this message.");
     }
     
-   
+    
     
     public void computeFolds(AbstractPopEvaluator evaluator, Solution<Variable<Integer>> solution, int solIdx, int[][] data) {
         int it = 0;
@@ -388,15 +388,15 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                         originalValue = ((int)featuresTable.getFeaturesTable("features").get(p)[pdLevelCol] > 0) ? 1 : 0;
                         break;
                 }
-
+                
                 resultsMatrix[it][0] = resultGE;
                 resultsMatrix[it++][1] = originalValue;
-
+                
                 
                 if (!Double.isNaN(resultGE)){
                     qResult = classifier.getQ(resultGE);
                 } else {
-                    // Store as a misclassification (max difference). This 
+                    // Store as a misclassification (max difference). This
                     // happens mostly when an exercise is not available for a patient.
                     switch (kindClassifier) {
                         case "dichotomizer":
@@ -406,15 +406,15 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                                 qResult = 1;
                             }
                             if (whoWas) {
-                                logger.info("NaN result for patient GA" +  (int)featuresTable.getFeaturesTable("features").get(p)[IDCol]);                        
+                                logger.info("NaN result for patient GA" +  (int)featuresTable.getFeaturesTable("features").get(p)[IDCol]);
                             }
                             break;
                     }
                 }
-                classifierEval.setValue(originalValue, qResult, 1);                    
-
+                classifierEval.setValue(originalValue, qResult, 1);
+                
                 if ((originalValue != qResult) && whoWas) {
-                    logger.info("Misclassification of patient GA" +  (int)featuresTable.getFeaturesTable("features").get(p)[IDCol] + " . Original: " + originalValue + ", resultGE: " + qResult);                        
+                    logger.info("Misclassification of patient GA" +  (int)featuresTable.getFeaturesTable("features").get(p)[IDCol] + " . Original: " + originalValue + ", resultGE: " + qResult);
                 }
             }
         }
@@ -450,9 +450,13 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
         return trainingFolds;
     }
     
-    public int[][] getValidationFold(int[][] patientsIdxs, int currentFolding) {
+    public int[][] getValidationFold(int[][] patientsIdxs, int currentFolding) throws IOException {
         int[][] validationFold = new int[1][patientsIdxs[0].length];
-        validationFold[0] = patientsIdxs[currentFolding];
+        if (properties.getProperty("readExternalFile").equals("yes")){
+            validationFold = featuresTable.getPatientsIdXs(properties.getProperty("validationFile"));
+        } else {
+            validationFold[0] = patientsIdxs[currentFolding];
+        }
         return validationFold;
     }
     
@@ -477,7 +481,7 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
             // TRAINING
             Properties properties = loadProperties(propertiesFilePath);
             JecoLogger.setup(properties.getProperty("LoggerBasePath") + ".log", Level.parse(properties.getProperty("LoggerLevel")));
-
+            
             /////////////////////////////////////////
             // Variables to store the results:
             double[] classRateAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
@@ -496,14 +500,21 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
             if ("yes".equals(properties.getProperty("NFoldCrossVal"))) {
                 // For each fold
                 for (int i=0; i<Integer.valueOf(properties.getProperty("N")); i++){
-                    logger.info("Starting Folding Num: " + i);
-                    
+                    if (Integer.valueOf(properties.getProperty("N")) > 1){
+                        logger.info("Starting Folding Num: " + i);
+                    } else {
+                        logger.info("Starting the only fold...");
+                    }
                     // New problem and new algorihm for each fold:
                     problem = new ParkinsonFeatureClassifier(properties);
                     problem.loadData("training");
                     
                     // Select the current fold
-                    problem.currentData = problem.getTrainingFolds(problem.featuresTable.getPatientsIdXs(true), i);
+                    if (problem.properties.getProperty("readExternalFile").equals("yes")){
+                        problem.currentData = problem.featuresTable.getPatientsIdXs(problem.properties.getProperty("trainingFile"));
+                    } else {
+                        problem.currentData = problem.getTrainingFolds(problem.featuresTable.getPatientsIdXs(true), i);
+                    }
                     
                     IntegerFlipMutation<Variable<Integer>> mutationOperator = new IntegerFlipMutation<>(problem, 1.0 / problem.reader.getRules().size());
                     SinglePointCrossover<Variable<Integer>> crossoverOperator = new SinglePointCrossover<>(problem, SinglePointCrossover.DEFAULT_FIXED_CROSSOVER_POINT, SinglePointCrossover.DEFAULT_PROBABILITY, SinglePointCrossover.AVOID_REPETITION_IN_FRONT);
@@ -541,7 +552,7 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                     
                     // Track misclassifications:
                     whoWas = false;
-            
+                    
                     // Evaluate the hold folding with the best solution found (each thread):
                     Solutions<Variable<Integer>> tempSolutions = new Solutions<>();
                     tempSolutions.add(bestSolution);
@@ -558,11 +569,9 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                     sensitivityAllFolds[i] = problem.classifierEval.getSensitivity(1);
                     specificityAllFolds[i] = problem.classifierEval.getSpecificity(1);
                     precisionAllFolds[i] = problem.classifierEval.getPrecision(1);
-
-                    logger.info("validationOfFold," + i + "," + (100*macroFValueAllFolds[i]) + "," + (100*classRateAllFolds[i]) +  "," + (100*macroPrecisionAllFolds[i]) + "," + 100*(macroSensitivityAllFolds[i]));
-                    // Get metrics from training:
-                    logger.info("TRAINING,averageAllClasses," + (100*Maths.mean(macroFValueAllFolds)) + "," + (100*Maths.std(macroFValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(macroSensitivityAllFolds)) +  "," + (100*Maths.std(macroSensitivityAllFolds)) + "," + (100*Maths.mean(macroSpecificityAllFolds)) + "," + (100*Maths.std(macroSpecificityAllFolds)) + "," + (100*Maths.mean(macroPrecisionAllFolds)) + "," + (100*Maths.std(macroPrecisionAllFolds)));
-                    logger.info("TRAINING,averageClass1," + (100*Maths.mean(fValueAllFolds)) + "," + (100*Maths.std(fValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(sensitivityAllFolds)) +  "," + (100*Maths.std(sensitivityAllFolds)) + "," + (100*Maths.mean(specificityAllFolds)) + "," + (100*Maths.std(specificityAllFolds)) + "," + (100*Maths.mean(precisionAllFolds)) + "," + (100*Maths.std(precisionAllFolds)));
+                    
+                    logger.info("validationOfFold,averageAllClasses," + i + "," + (100*macroFValueAllFolds[i]) + "," + (100*classRateAllFolds[i]) +  "," + (100*macroPrecisionAllFolds[i]) + "," + 100*(macroSensitivityAllFolds[i]));
+                    logger.info("validationOfFold,averageClass1," + i + "," + (100*fValueAllFolds[i]) + "," + (100*classRateAllFolds[i]) +  "," + (100*precisionAllFolds[i]) + "," + 100*(sensitivityAllFolds[i]));
                     
                     // Print the confussion matrix
                     int[][] cf = problem.classifierEval.getConfusionMatrix();
@@ -572,112 +581,119 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                     logger.info("F_GE |" + cf[0][0] + "|" + cf[0][1] + "|");
                     logger.info("     |---|");
                     logger.info("T_GE |" + cf[1][0] + "|" + cf[1][1] + "|");
-                    logger.info("     |---|");   
-
-                    whoWas = false;                                        
+                    logger.info("     |---|");
+                    
+                    whoWas = false;
                 }
                 // Finally calculate the final expression, result of training (OUT OF THE IF)
+                
+                // Get metrics from training:
+                logger.info("TRAINING,averageAllClasses," + (100*Maths.mean(macroFValueAllFolds)) + "," + (100*Maths.std(macroFValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(macroSensitivityAllFolds)) +  "," + (100*Maths.std(macroSensitivityAllFolds)) + "," + (100*Maths.mean(macroSpecificityAllFolds)) + "," + (100*Maths.std(macroSpecificityAllFolds)) + "," + (100*Maths.mean(macroPrecisionAllFolds)) + "," + (100*Maths.std(macroPrecisionAllFolds)));
+                logger.info("TRAINING,averageClass1," + (100*Maths.mean(fValueAllFolds)) + "," + (100*Maths.std(fValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(sensitivityAllFolds)) +  "," + (100*Maths.std(sensitivityAllFolds)) + "," + (100*Maths.mean(specificityAllFolds)) + "," + (100*Maths.std(specificityAllFolds)) + "," + (100*Maths.mean(precisionAllFolds)) + "," + (100*Maths.std(precisionAllFolds)));
             }
             
             // FINAL TRAINING. Use all the data:
-            // New problem and new algorihm to compute all the patients:
-            problem = new ParkinsonFeatureClassifier(properties);
-            problem.loadData("training");
-            problem.classifierEval.resetConfusionMatrix();
-            
-            // Track misclassifications:
-            whoWas = false;
-            
-            // Select all the patients:
-            problem.currentData = problem.featuresTable.getPatientsIdXs(false);
-            
-            IntegerFlipMutation<Variable<Integer>> mutationOperator = new IntegerFlipMutation<>(problem, 1.0 / problem.reader.getRules().size());
-            SinglePointCrossover<Variable<Integer>> crossoverOperator = new SinglePointCrossover<>(problem, SinglePointCrossover.DEFAULT_FIXED_CROSSOVER_POINT, SinglePointCrossover.DEFAULT_PROBABILITY, SinglePointCrossover.AVOID_REPETITION_IN_FRONT);
-            SimpleDominance<Variable<Integer>> comparator = new SimpleDominance<>();
-            BinaryTournament<Variable<Integer>> selectionOp = new BinaryTournament<>(comparator);
-            SimpleGeneticAlgorithm<Variable<Integer>> algorithm = new SimpleGeneticAlgorithm<>(problem, Integer.valueOf(properties.getProperty("NumIndividuals")), Integer.valueOf(properties.getProperty("NumGenerations")), true, mutationOperator, crossoverOperator, selectionOp);
-            
-            // Call optimization problem:
-            Solutions<Variable<Integer>> popAfterExecution = new Solutions<>();
-            
-            switch (properties.getProperty("Parallelization")) {
-                case "yes":
-                    MasterWorkerThreads<Variable<Integer>> masterWorker = new MasterWorkerThreads<>(algorithm, problem, Integer.valueOf(properties.getProperty("NumCores")));
-                    popAfterExecution = masterWorker.execute();
-                    break;
-                default:
-                    algorithm.initialize();
-                    popAfterExecution = algorithm.execute();
-            }
-            
-            // Take the best solution:
-            Solution<Variable<Integer>> bestSolution = popAfterExecution.get(0);
-            String bestExpression = problem.generatePhenotype(bestSolution).toString();
-            
-            // Evaluate the best solution found (all threads):
-            Solutions<Variable<Integer>> tempSolutions = new Solutions<>();
-            tempSolutions.add(bestSolution);
-            problem.evaluate(tempSolutions);
-            
-            logger.info("Final Training...");
-            switch (problem.kindClassifier) {
-                case "dichotomizer":
-                    // Print the confussion matrix
-                    int[][] cf = problem.classifierEval.getConfusionMatrix();
-                    logger.info("Confussion Matrix:");
-                    logger.info("     |F|T|");
-                    logger.info("     |---|");
-                    logger.info("F_GE |" + cf[0][0] + "|" + cf[0][1] + "|");
-                    logger.info("     |---|");
-                    logger.info("T_GE |" + cf[1][0] + "|" + cf[1][1] + "|");
-                    logger.info("     |---|");           
-                    logger.info("FINAL_TRAINING,PD class 1," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
-                    break;
-            }
-            logger.info("FINAL_TRAINING,All classes," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);
-            logger.info("...final training done");
-            
-            /* Print resutlsGE VS real values of the training*/
-            logger.info("resultsGE,realValue");
-            for (int y=0; y<problem.bestResultsMatrix.length; y++){
-                logger.info(problem.bestResultsMatrix[y][0] + "," + problem.bestResultsMatrix[y][1]);
-            }
-            
-            ////////////////////////////////////////////////////////////////////
-            // TEST
-            // Take the solution found with all the patients. Evaluate over the test data-set:
-            logger.info("TEST:");
+            if (properties.getProperty("trainingAllPatients").equals("yes")) {
+                
+                // New problem and new algorihm to compute all the patients:
+                problem = new ParkinsonFeatureClassifier(properties);
+                problem.loadData("training");
+                problem.classifierEval.resetConfusionMatrix();
+                
+                // Track misclassifications:
+                whoWas = false;
+                
+                // Select all the patients:        
+                problem.currentData = problem.featuresTable.getPatientsIdXs(false);
 
-            // Track misclassifications:
-            whoWas = true;
-
-            problem = new ParkinsonFeatureClassifier(properties);
-            problem.loadData("test");
-            problem.classifierEval.resetConfusionMatrix();
-            
-            // Select all the patients:
-            problem.currentData = problem.featuresTable.getPatientsIdXs(false);
-            
-            // Evaluate the best solution found (all threads):
-            problem.evaluate(tempSolutions);
-            
-
-            switch (problem.kindClassifier) {
-                case "dichotomizer":
-                    // Print the confussion matrix
-                    int[][] cf = problem.classifierEval.getConfusionMatrix();
-                    logger.info("Confussion Matrix:");
-                    logger.info("     |F|T|");
-                    logger.info("     |---|");
-                    logger.info("F_GE |" + cf[0][0] + "|" + cf[0][1] + "|");
-                    logger.info("     |---|");
-                    logger.info("T_GE |" + cf[1][0] + "|" + cf[1][1] + "|");
-                    logger.info("     |---|");           
-                    logger.info("FINAL_TEST,PD class 1," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
-                    break;
+                
+                IntegerFlipMutation<Variable<Integer>> mutationOperator = new IntegerFlipMutation<>(problem, 1.0 / problem.reader.getRules().size());
+                SinglePointCrossover<Variable<Integer>> crossoverOperator = new SinglePointCrossover<>(problem, SinglePointCrossover.DEFAULT_FIXED_CROSSOVER_POINT, SinglePointCrossover.DEFAULT_PROBABILITY, SinglePointCrossover.AVOID_REPETITION_IN_FRONT);
+                SimpleDominance<Variable<Integer>> comparator = new SimpleDominance<>();
+                BinaryTournament<Variable<Integer>> selectionOp = new BinaryTournament<>(comparator);
+                SimpleGeneticAlgorithm<Variable<Integer>> algorithm = new SimpleGeneticAlgorithm<>(problem, Integer.valueOf(properties.getProperty("NumIndividuals")), Integer.valueOf(properties.getProperty("NumGenerations")), true, mutationOperator, crossoverOperator, selectionOp);
+                
+                // Call optimization problem:
+                Solutions<Variable<Integer>> popAfterExecution = new Solutions<>();
+                
+                switch (properties.getProperty("Parallelization")) {
+                    case "yes":
+                        MasterWorkerThreads<Variable<Integer>> masterWorker = new MasterWorkerThreads<>(algorithm, problem, Integer.valueOf(properties.getProperty("NumCores")));
+                        popAfterExecution = masterWorker.execute();
+                        break;
+                    default:
+                        algorithm.initialize();
+                        popAfterExecution = algorithm.execute();
+                }
+                
+                // Take the best solution:
+                Solution<Variable<Integer>> bestSolution = popAfterExecution.get(0);
+                String bestExpression = problem.generatePhenotype(bestSolution).toString();
+                
+                // Evaluate the best solution found (all threads):
+                Solutions<Variable<Integer>> tempSolutions = new Solutions<>();
+                tempSolutions.add(bestSolution);
+                problem.evaluate(tempSolutions);
+                
+                logger.info("Final Training...");
+                switch (problem.kindClassifier) {
+                    case "dichotomizer":
+                        // Print the confussion matrix
+                        int[][] cf = problem.classifierEval.getConfusionMatrix();
+                        logger.info("Confussion Matrix:");
+                        logger.info("     |F|T|");
+                        logger.info("     |---|");
+                        logger.info("F_GE |" + cf[0][0] + "|" + cf[0][1] + "|");
+                        logger.info("     |---|");
+                        logger.info("T_GE |" + cf[1][0] + "|" + cf[1][1] + "|");
+                        logger.info("     |---|");
+                        logger.info("FINAL_TRAINING,PD class 1," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
+                        break;
+                }
+                logger.info("FINAL_TRAINING,All classes," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);
+                logger.info("...final training done");
+                
+                /* Print resutlsGE VS real values of the training*/
+                //logger.info("resultsGE,realValue");
+                //for (int y=0; y<problem.bestResultsMatrix.length; y++){
+                //    logger.info(problem.bestResultsMatrix[y][0] + "," + problem.bestResultsMatrix[y][1]);
+                ///}
+                
+                ////////////////////////////////////////////////////////////////////
+                // TEST
+                // Take the solution found with all the patients. Evaluate over the test data-set:
+                logger.info("TEST:");
+                
+                // Track misclassifications:
+                whoWas = true;
+                
+                problem = new ParkinsonFeatureClassifier(properties);
+                problem.loadData("test");
+                problem.classifierEval.resetConfusionMatrix();
+                
+                // Select all the patients:
+                problem.currentData = problem.featuresTable.getPatientsIdXs(false);
+                
+                // Evaluate the best solution found (all threads):
+                problem.evaluate(tempSolutions);
+                
+                
+                switch (problem.kindClassifier) {
+                    case "dichotomizer":
+                        // Print the confussion matrix
+                        int[][] cf = problem.classifierEval.getConfusionMatrix();
+                        logger.info("Confussion Matrix:");
+                        logger.info("     |F|T|");
+                        logger.info("     |---|");
+                        logger.info("F_GE |" + cf[0][0] + "|" + cf[0][1] + "|");
+                        logger.info("     |---|");
+                        logger.info("T_GE |" + cf[1][0] + "|" + cf[1][1] + "|");
+                        logger.info("     |---|");
+                        logger.info("FINAL_TEST,PD class 1," + (100*problem.classifierEval.getFValue(1)) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getPrecision(1)) + "," + 100*(problem.classifierEval.getSensitivity(1)) + "," + 100*(problem.classifierEval.getSpecificity(1)));
+                        break;
+                }
+                logger.info("FINAL_TEST,All classes," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);
             }
-            logger.info("FINAL_TEST,All classes," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);
-
         } catch (IOException ex) {
             Logger.getLogger(ParkinsonFeatureClassifier.class.getName()).log(Level.SEVERE, null, ex);
         }

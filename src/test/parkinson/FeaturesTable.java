@@ -113,7 +113,7 @@ public class FeaturesTable {
     }
         
 
-        public final void readHead(String dataPath, ArrayList headTable) throws IOException {
+    public final void readHead(String dataPath, ArrayList headTable) throws IOException {
         File file = new File(dataPath);
         if (file.exists()){
             
@@ -160,13 +160,25 @@ public class FeaturesTable {
         return new ArrayList(table.subList(idx1, idx2));           
     }
 
-    public int[][] getPatientsIdXs(boolean crossVal){
+    public int[][] getPatientsIdXs(boolean crossVal) throws IOException{
         // Check N fold cross-validation
         if (crossVal) {
             patientsIdxs = randomizeDataSelection(table.size(), Integer.valueOf(problem.properties.getProperty("N")), true);
         } else {
             patientsIdxs = randomizeDataSelection(table.size(), 1, false);
-        }        
+        }
+        return patientsIdxs;
+    }
+    
+    public int[][] getPatientsIdXs(String fileIdxsPatients) throws IOException{
+            ArrayList<double[]> tempIdxs = new ArrayList<>();
+            readData(problem.properties.getProperty("DataPathBase") + fileIdxsPatients, tempIdxs);
+            patientsIdxs = new int[1][tempIdxs.size()];
+            
+            for (int i=0; i<tempIdxs.size(); i++){
+                patientsIdxs[0][i] = (int)tempIdxs.get(i)[0];
+            }
+        
         return patientsIdxs;
     }
     
