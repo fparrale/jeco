@@ -8,6 +8,8 @@ package jeco.util.classifier;
  */
 public class ClassifierEvaluator {
     protected int[][] confusionMatrix;
+    protected double[] original;
+    protected double[] predicted;
     
     public ClassifierEvaluator(int c) {
         this.confusionMatrix = new int[c][c];
@@ -25,8 +27,16 @@ public class ClassifierEvaluator {
         confusionMatrix = cm;
     }
     
-    public void setValue(int originalClass, int classifiedClass, int v) {
+    public void setValue(int element, int originalClass, int classifiedClass, int v) {
         confusionMatrix[classifiedClass][originalClass] += v;
+        if (element > 0){
+            original[element] = originalClass;
+            predicted[element] = classifiedClass;            
+        }
+    }
+    
+    public void setValue(int originalClass, int classifiedClass, int v) {
+        setValue(-1, originalClass, classifiedClass, v);
     }
     
     public int[][] getConfusionMatrix() {
@@ -43,6 +53,14 @@ public class ClassifierEvaluator {
         return n;
     }
     
+    public double[] getOriginal(){
+        return original;
+    }
+
+    public double[] getPredicted(){
+        return predicted;
+    }
+
     // Calculate the OSR (Overall Success Rate)
     public double getClassificationRate() {
         double osr = 0.0;

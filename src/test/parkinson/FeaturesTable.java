@@ -26,6 +26,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Properties;
 import java.util.Random;
 import java.util.logging.Logger;
 import jeco.util.string.stringManagement;
@@ -41,7 +42,7 @@ public class FeaturesTable {
     
     private static final Logger logger = Logger.getLogger(FeaturesTable.class.getName());
     
-    protected ParkinsonFeatureClassifier problem;
+    protected Properties problemProperties;
     protected ArrayList<double[]> table = new ArrayList<>();
     protected ArrayList tableNames = new ArrayList<>();
 
@@ -60,8 +61,8 @@ public class FeaturesTable {
 
 
     
-    public FeaturesTable(ParkinsonFeatureClassifier problem, String type, int idxBegin, int idxEnd) throws IOException {
-        this.problem = problem;
+    public FeaturesTable(Properties problemProperties, String type, int idxBegin, int idxEnd) throws IOException {
+        this.problemProperties = problemProperties;
         logger.info("Reading data file ...");
         setPaths(type);
         readData(features, table);
@@ -74,8 +75,8 @@ public class FeaturesTable {
         logger.info("... done.");
     }
     
-    public FeaturesTable(ParkinsonFeatureClassifier problem, String type) throws IOException {
-        this(problem, type, -1, -1);
+    public FeaturesTable(Properties problemProperties, String type) throws IOException {
+        this(problemProperties, type, -1, -1);
     }
     
        
@@ -163,7 +164,7 @@ public class FeaturesTable {
     public int[][] getPatientsIdXs(boolean crossVal) throws IOException{
         // Check N fold cross-validation
         if (crossVal) {
-            patientsIdxs = randomizeDataSelection(table.size(), Integer.valueOf(problem.properties.getProperty("N")), true);
+            patientsIdxs = randomizeDataSelection(table.size(), Integer.valueOf(problemProperties.getProperty("N")), true);
         } else {
             patientsIdxs = randomizeDataSelection(table.size(), 1, false);
         }
@@ -172,7 +173,7 @@ public class FeaturesTable {
     
     public int[][] getPatientsIdXs(String fileIdxsPatients) throws IOException{
             ArrayList<double[]> tempIdxs = new ArrayList<>();
-            readData(problem.properties.getProperty("DataPathBase") + fileIdxsPatients, tempIdxs);
+            readData(problemProperties.getProperty("DataPathBase") + fileIdxsPatients, tempIdxs);
             patientsIdxs = new int[1][tempIdxs.size()];
             
             for (int i=0; i<tempIdxs.size(); i++){
@@ -210,15 +211,15 @@ public class FeaturesTable {
     }
     
     public final void setPaths(String type) {
-        String dataPath = problem.properties.getProperty("DataPathBase");
-        featuresNames = (dataPath + problem.properties.getProperty("FeaturesNamesPath"));
+        String dataPath = problemProperties.getProperty("DataPathBase");
+        featuresNames = (dataPath + problemProperties.getProperty("FeaturesNamesPath"));
 
         switch (type) {
             case "training":
-                features = (dataPath + problem.properties.getProperty("FeaturesTrainingPath"));
+                features = (dataPath + problemProperties.getProperty("FeaturesTrainingPath"));
                 break;
             case "test":
-                features = (dataPath + problem.properties.getProperty("FeaturesTestPath"));
+                features = (dataPath + problemProperties.getProperty("FeaturesTestPath"));
                 break;
         }
     }

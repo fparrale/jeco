@@ -53,14 +53,17 @@ import jeco.util.compiler.MyCompiler;
 import jeco.util.compiler.MyLoader;
 import jeco.util.logger.JecoLogger;
 import jeco.util.Maths;
+import jeco.util.classifier.AdaBoost;
 
 
-public class ParkinsonFeatureClassifier extends AbstractProblemGE {
+public class ParkinsonAdaBoostClassifier extends AbstractProblemGE {
     
-    private static final Logger logger = Logger.getLogger(ParkinsonFeatureClassifier.class.getName());
+    private static final Logger logger = Logger.getLogger(ParkinsonAdaBoostClassifier.class.getName());
     private static boolean whoWas = false;
     
     private static int CURRENT_THREAD_ID = 1;
+    private static int CURRENT_FOLD = 0;
+
     protected int threadId;
     protected MyCompiler compiler;
     protected FeaturesTable featuresTable = null;
@@ -87,10 +90,10 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
     protected int bestNumGeneration;
     
     @Override
-    public ParkinsonFeatureClassifier clone() {
-        ParkinsonFeatureClassifier clone = null;
+    public ParkinsonAdaBoostClassifier clone() {
+        ParkinsonAdaBoostClassifier clone = null;
         try {
-            clone = new ParkinsonFeatureClassifier(properties);
+            clone = new ParkinsonAdaBoostClassifier(properties);
             clone.featuresTable = this.featuresTable;
             clone.currentData = this.currentData;
             clone.pdLevelCol = this.pdLevelCol;
@@ -109,7 +112,7 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
         return clone;
     }
     
-    public ParkinsonFeatureClassifier(Properties properties) throws IOException {
+    public ParkinsonAdaBoostClassifier(Properties properties) throws IOException {
         super(properties.getProperty("BnfPathFile"), 1);
         this.properties = properties;
         this.threadId = CURRENT_THREAD_ID++;
@@ -411,7 +414,7 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                             break;
                     }
                 }
-                classifierEval.setValue(originalValue, qResult, 1);
+                classifierEval.setValue(j, originalValue, qResult, 1);
                 
                 if ((originalValue != qResult) && whoWas) {
                     logger.info("Misclassification of patient GA" +  (int)featuresTable.getFeaturesTable("features").get(p)[IDCol] + " . Original: " + originalValue + ", resultGE: " + qResult);
@@ -468,8 +471,108 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
         IDCol = Integer.valueOf(properties.getProperty("IDCol"));
     }
     
-    public static void main(String[] args) {
-        String propertiesFilePath = "test" + File.separator + ParkinsonFeatureClassifier.class.getSimpleName() + ".properties";
+    public void runLearner(ArrayList<double[]> wData) throws IOException{
+        // Set weighted data
+        featuresTable.table = wData;
+        
+        // Variables to store the results:
+        double[] classRateAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+        double[] macroSensitivityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+        double[] macroSpecificityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+        double[] macroPrecisionAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+        String[] expressionAllFolds = new String[Integer.valueOf(properties.getProperty("N"))];
+        double[] macroFValueAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+        double[] sensitivityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+        double[] specificityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+        double[] precisionAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+        double[] fValueAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
+        
+        // Call optimization problem:
+        IntegerFlipMutation<Variable<Integer>> mutationOperator = new IntegerFlipMutation<>(this, 1.0 / reader.getRules().size());
+        SinglePointCrossover<Variable<Integer>> crossoverOperator = new SinglePointCrossover<>(this, SinglePointCrossover.DEFAULT_FIXED_CROSSOVER_POINT, SinglePointCrossover.DEFAULT_PROBABILITY, SinglePointCrossover.AVOID_REPETITION_IN_FRONT);
+        SimpleDominance<Variable<Integer>> comparator = new SimpleDominance<>();
+        BinaryTournament<Variable<Integer>> selectionOp = new BinaryTournament<>(comparator);
+        SimpleGeneticAlgorithm<Variable<Integer>> algorithm = new SimpleGeneticAlgorithm<>(this, Integer.valueOf(properties.getProperty("NumIndividuals")), Integer.valueOf(properties.getProperty("NumGenerations")), true, mutationOperator, crossoverOperator, selectionOp);
+        
+        Solutions<Variable<Integer>> popAfterExecution = new Solutions<>();
+        switch (properties.getProperty("Parallelization")) {
+            case "yes":
+                MasterWorkerThreads<Variable<Integer>> masterWorker = new MasterWorkerThreads<>(algorithm, this, Integer.valueOf(properties.getProperty("NumCores")));
+                popAfterExecution = masterWorker.execute();
+                break;
+            default:
+                algorithm.initialize();
+                popAfterExecution = algorithm.execute();
+        }
+        
+        // Take the best of all threads:
+        Solution<Variable<Integer>> bestSolution = popAfterExecution.get(0);
+        
+        // Reset everything:
+        classifierEval.resetConfusionMatrix();
+        bestClassRate = Double.NEGATIVE_INFINITY;
+        bestMacroAvgTPR = Double.NEGATIVE_INFINITY;
+        bestMacroAvgTNR = Double.NEGATIVE_INFINITY;
+        bestMacroAvgF = Double.NEGATIVE_INFINITY;
+        bestMacroAvgPPV = Double.NEGATIVE_INFINITY;
+        bestResultsMatrix = null;
+        
+        // Validate the best function with the holded fold
+        // This is the result of the training of this folder
+        currentData = getValidationFold(featuresTable.getPatientsIdXs(true), CURRENT_THREAD_ID);
+        
+        // Track misclassifications:
+        whoWas = false;
+        
+        // Evaluate the hold folding with the best solution found (each thread):
+        Solutions<Variable<Integer>> tempSolutions = new Solutions<>();
+        tempSolutions.add(bestSolution);
+        evaluate(tempSolutions);
+        
+        // Store the result of the training with this fold:
+        macroFValueAllFolds[CURRENT_THREAD_ID] = classifierEval.getMacroFValue();
+        classRateAllFolds[CURRENT_THREAD_ID] = classifierEval.getClassificationRate();
+        macroSensitivityAllFolds[CURRENT_THREAD_ID] = classifierEval.getMacroAverageSensitivity();
+        macroSpecificityAllFolds[CURRENT_THREAD_ID] = classifierEval.getMacroAverageSpecificity();
+        macroPrecisionAllFolds[CURRENT_THREAD_ID] = classifierEval.getMacroAveragePrecision();
+        expressionAllFolds[CURRENT_THREAD_ID] = generatePhenotype(bestSolution).toString();
+        fValueAllFolds[CURRENT_THREAD_ID] = classifierEval.getFValue(1);
+        sensitivityAllFolds[CURRENT_THREAD_ID] = classifierEval.getSensitivity(1);
+        specificityAllFolds[CURRENT_THREAD_ID] = classifierEval.getSpecificity(1);
+        precisionAllFolds[CURRENT_THREAD_ID] = classifierEval.getPrecision(1);
+        
+        logger.info("validationOfFold,averageAllClasses," + CURRENT_THREAD_ID + "," + (100*macroFValueAllFolds[CURRENT_THREAD_ID]) + "," + (100*classRateAllFolds[CURRENT_THREAD_ID]) +  "," + (100*macroPrecisionAllFolds[CURRENT_THREAD_ID]) + "," + 100*(macroSensitivityAllFolds[CURRENT_THREAD_ID]));
+        logger.info("validationOfFold,averageClass1," + CURRENT_THREAD_ID + "," + (100*fValueAllFolds[CURRENT_THREAD_ID]) + "," + (100*classRateAllFolds[CURRENT_THREAD_ID]) +  "," + (100*precisionAllFolds[CURRENT_THREAD_ID]) + "," + 100*(sensitivityAllFolds[CURRENT_THREAD_ID]));
+        
+        // Print the confussion matrix
+        int[][] cf = classifierEval.getConfusionMatrix();
+        logger.info("Confussion Matrix:");
+        logger.info("     |F|T|");
+        logger.info("     |---|");
+        logger.info("F_GE |" + cf[0][0] + "|" + cf[0][1] + "|");
+        logger.info("     |---|");
+        logger.info("T_GE |" + cf[1][0] + "|" + cf[1][1] + "|");
+        logger.info("     |---|");
+        
+        whoWas = false;
+        
+        // Finally calculate the final expression, result of training (OUT OF THE IF)
+        
+        // Get metrics from training:
+        logger.info("TRAINING,averageAllClasses," + (100*Maths.mean(macroFValueAllFolds)) + "," + (100*Maths.std(macroFValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(macroSensitivityAllFolds)) +  "," + (100*Maths.std(macroSensitivityAllFolds)) + "," + (100*Maths.mean(macroSpecificityAllFolds)) + "," + (100*Maths.std(macroSpecificityAllFolds)) + "," + (100*Maths.mean(macroPrecisionAllFolds)) + "," + (100*Maths.std(macroPrecisionAllFolds)));
+        logger.info("TRAINING,averageClass1," + (100*Maths.mean(fValueAllFolds)) + "," + (100*Maths.std(fValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(sensitivityAllFolds)) +  "," + (100*Maths.std(sensitivityAllFolds)) + "," + (100*Maths.mean(specificityAllFolds)) + "," + (100*Maths.std(specificityAllFolds)) + "," + (100*Maths.mean(precisionAllFolds)) + "," + (100*Maths.std(precisionAllFolds)));
+    }
+    
+    public void runAdaBoost() throws IOException{
+        AdaBoost myAdaBoost = new AdaBoost(this, classifierEval, featuresTable.table, 10);
+        myAdaBoost.run();
+        if (true){
+            return;
+        }       
+    }
+    
+    public static void main(String[] args) throws IOException {
+        String propertiesFilePath = "test" + File.separator + ParkinsonAdaBoostClassifier.class.getSimpleName() + ".properties";
         
         if (args.length == 1) {
             propertiesFilePath = args[0];
@@ -483,30 +586,21 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
             JecoLogger.setup(properties.getProperty("LoggerBasePath") + ".log", Level.parse(properties.getProperty("LoggerLevel")));
             
             /////////////////////////////////////////
-            // Variables to store the results:
-            double[] classRateAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
-            double[] macroSensitivityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
-            double[] macroSpecificityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
-            double[] macroPrecisionAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
-            String[] expressionAllFolds = new String[Integer.valueOf(properties.getProperty("N"))];
-            double[] macroFValueAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
-            double[] sensitivityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
-            double[] specificityAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
-            double[] precisionAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
-            double[] fValueAllFolds = new double[Integer.valueOf(properties.getProperty("N"))];
-            
-            ParkinsonFeatureClassifier problem;
+            ParkinsonAdaBoostClassifier problem;
             // If N-fold cross-validation: first run it and calculate metrics.
             if ("yes".equals(properties.getProperty("NFoldCrossVal"))) {
                 // For each fold
+                
                 for (int i=0; i<Integer.valueOf(properties.getProperty("N")); i++){
+                    CURRENT_THREAD_ID = i;
+                
                     if (Integer.valueOf(properties.getProperty("N")) > 1){
                         logger.info("Starting Folding Num: " + i);
                     } else {
                         logger.info("Starting the only fold...");
                     }
                     // New problem and new algorihm for each fold:
-                    problem = new ParkinsonFeatureClassifier(properties);
+                    problem = new ParkinsonAdaBoostClassifier(properties);
                     problem.loadData("training");
                     
                     // Select the current fold
@@ -516,87 +610,16 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                         problem.currentData = problem.getTrainingFolds(problem.featuresTable.getPatientsIdXs(true), i);
                     }
                     
-                    IntegerFlipMutation<Variable<Integer>> mutationOperator = new IntegerFlipMutation<>(problem, 1.0 / problem.reader.getRules().size());
-                    SinglePointCrossover<Variable<Integer>> crossoverOperator = new SinglePointCrossover<>(problem, SinglePointCrossover.DEFAULT_FIXED_CROSSOVER_POINT, SinglePointCrossover.DEFAULT_PROBABILITY, SinglePointCrossover.AVOID_REPETITION_IN_FRONT);
-                    SimpleDominance<Variable<Integer>> comparator = new SimpleDominance<>();
-                    BinaryTournament<Variable<Integer>> selectionOp = new BinaryTournament<>(comparator);
-                    SimpleGeneticAlgorithm<Variable<Integer>> algorithm = new SimpleGeneticAlgorithm<>(problem, Integer.valueOf(properties.getProperty("NumIndividuals")), Integer.valueOf(properties.getProperty("NumGenerations")), true, mutationOperator, crossoverOperator, selectionOp);
-                    
-                    // Call optimization problem:
-                    Solutions<Variable<Integer>> popAfterExecution = new Solutions<>();
-                    switch (properties.getProperty("Parallelization")) {
-                        case "yes":
-                            MasterWorkerThreads<Variable<Integer>> masterWorker = new MasterWorkerThreads<>(algorithm, problem, Integer.valueOf(properties.getProperty("NumCores")));
-                            popAfterExecution = masterWorker.execute();
-                            break;
-                        default:
-                            algorithm.initialize();
-                            popAfterExecution = algorithm.execute();
-                    }
-                    
-                    // Take the best of all threads:
-                    Solution<Variable<Integer>> bestSolution = popAfterExecution.get(0);
-                    
-                    // Reset everything:
-                    problem.classifierEval.resetConfusionMatrix();
-                    problem.bestClassRate = Double.NEGATIVE_INFINITY;
-                    problem.bestMacroAvgTPR = Double.NEGATIVE_INFINITY;
-                    problem.bestMacroAvgTNR = Double.NEGATIVE_INFINITY;
-                    problem.bestMacroAvgF = Double.NEGATIVE_INFINITY;
-                    problem.bestMacroAvgPPV = Double.NEGATIVE_INFINITY;
-                    problem.bestResultsMatrix = null;
-                    
-                    // Validate the best function with the holded fold
-                    // This is the result of the training of this folder
-                    problem.currentData = problem.getValidationFold(problem.featuresTable.getPatientsIdXs(true), i);;
-                    
-                    // Track misclassifications:
-                    whoWas = false;
-                    
-                    // Evaluate the hold folding with the best solution found (each thread):
-                    Solutions<Variable<Integer>> tempSolutions = new Solutions<>();
-                    tempSolutions.add(bestSolution);
-                    problem.evaluate(tempSolutions);
-                    
-                    // Store the result of the training with this fold:
-                    macroFValueAllFolds[i] = problem.classifierEval.getMacroFValue();
-                    classRateAllFolds[i] = problem.classifierEval.getClassificationRate();
-                    macroSensitivityAllFolds[i] = problem.classifierEval.getMacroAverageSensitivity();
-                    macroSpecificityAllFolds[i] = problem.classifierEval.getMacroAverageSpecificity();
-                    macroPrecisionAllFolds[i] = problem.classifierEval.getMacroAveragePrecision();
-                    expressionAllFolds[i] = problem.generatePhenotype(bestSolution).toString();
-                    fValueAllFolds[i] = problem.classifierEval.getFValue(1);
-                    sensitivityAllFolds[i] = problem.classifierEval.getSensitivity(1);
-                    specificityAllFolds[i] = problem.classifierEval.getSpecificity(1);
-                    precisionAllFolds[i] = problem.classifierEval.getPrecision(1);
-                    
-                    logger.info("validationOfFold,averageAllClasses," + i + "," + (100*macroFValueAllFolds[i]) + "," + (100*classRateAllFolds[i]) +  "," + (100*macroPrecisionAllFolds[i]) + "," + 100*(macroSensitivityAllFolds[i]));
-                    logger.info("validationOfFold,averageClass1," + i + "," + (100*fValueAllFolds[i]) + "," + (100*classRateAllFolds[i]) +  "," + (100*precisionAllFolds[i]) + "," + 100*(sensitivityAllFolds[i]));
-                    
-                    // Print the confussion matrix
-                    int[][] cf = problem.classifierEval.getConfusionMatrix();
-                    logger.info("Confussion Matrix:");
-                    logger.info("     |F|T|");
-                    logger.info("     |---|");
-                    logger.info("F_GE |" + cf[0][0] + "|" + cf[0][1] + "|");
-                    logger.info("     |---|");
-                    logger.info("T_GE |" + cf[1][0] + "|" + cf[1][1] + "|");
-                    logger.info("     |---|");
-                    
-                    whoWas = false;
+                    // Call AdaBoost
+                    problem.runAdaBoost();
                 }
-                // Finally calculate the final expression, result of training (OUT OF THE IF)
-                
-                // Get metrics from training:
-                logger.info("TRAINING,averageAllClasses," + (100*Maths.mean(macroFValueAllFolds)) + "," + (100*Maths.std(macroFValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(macroSensitivityAllFolds)) +  "," + (100*Maths.std(macroSensitivityAllFolds)) + "," + (100*Maths.mean(macroSpecificityAllFolds)) + "," + (100*Maths.std(macroSpecificityAllFolds)) + "," + (100*Maths.mean(macroPrecisionAllFolds)) + "," + (100*Maths.std(macroPrecisionAllFolds)));
-                logger.info("TRAINING,averageClass1," + (100*Maths.mean(fValueAllFolds)) + "," + (100*Maths.std(fValueAllFolds)) + "," + (100*Maths.mean(classRateAllFolds)) + "," + (100*Maths.std(classRateAllFolds)) + "," + (100*Maths.mean(sensitivityAllFolds)) +  "," + (100*Maths.std(sensitivityAllFolds)) + "," + (100*Maths.mean(specificityAllFolds)) + "," + (100*Maths.std(specificityAllFolds)) + "," + (100*Maths.mean(precisionAllFolds)) + "," + (100*Maths.std(precisionAllFolds)));
             }
             
             // FINAL TRAINING. Use all the data:
             if (properties.getProperty("trainingAllPatients").equals("yes")) {
                 
                 // New problem and new algorihm to compute all the patients:
-                problem = new ParkinsonFeatureClassifier(properties);
+                problem = new ParkinsonAdaBoostClassifier(properties);
                 problem.loadData("training");
                 problem.classifierEval.resetConfusionMatrix();
                 
@@ -667,7 +690,7 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                 // Track misclassifications:
                 whoWas = true;
                 
-                problem = new ParkinsonFeatureClassifier(properties);
+                problem = new ParkinsonAdaBoostClassifier(properties);
                 problem.loadData("test");
                 problem.classifierEval.resetConfusionMatrix();
                 
@@ -695,7 +718,7 @@ public class ParkinsonFeatureClassifier extends AbstractProblemGE {
                 logger.info("FINAL_TEST,All classes," + (100*problem.classifierEval.getMacroFValue()) + "," + (100*problem.classifierEval.getClassificationRate()) +  "," + (100*problem.classifierEval.getMacroAveragePrecision()) + "," + 100*(problem.classifierEval.getMacroAverageSensitivity()) + "," + 100*(problem.classifierEval.getMacroAverageSpecificity()) + "," + bestExpression);
             }
         } catch (IOException ex) {
-            Logger.getLogger(ParkinsonFeatureClassifier.class.getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(ParkinsonAdaBoostClassifier.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
 }
